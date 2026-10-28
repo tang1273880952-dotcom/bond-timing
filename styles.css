@@ -11,3 +11,24 @@
 .card-metric span{color:#64748b}.card-metric b{text-align:right}
 .card-metrics p{font-size:12px;color:#697995;line-height:1.7;margin:12px 0 0}
 .ownership button{touch-action:manipulation}
+
+.us-panel{border:1px solid #dce7f8;background:linear-gradient(160deg,#fff,#f8fbff)}
+.us-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.us-header h3{font-size:23px;margin:5px 0}
+.us-header p{line-height:1.6;margin:5px 0 14px}
+.us-label{background:#e9f0ff;color:#3262bc;font-size:12px;padding:6px 12px;border-radius:30px;white-space:nowrap;font-weight:750}
+.us-empty{background:#f3f5f9;color:#64748b;border-radius:12px;padding:18px 14px;margin-top:14px}
+.us-card-main{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px}
+.us-score{font-weight:850;font-size:54px;letter-spacing:-.03em;line-height:1}
+.us-score small{font-size:14px;font-weight:500;color:#7c8da8}
+.us-result{font-size:14px;color:#557199;margin-top:6px}
+.us-tip{margin:12px 0;padding:15px;border-radius:13px;background:#f1f5fb;color:#334c77;line-height:1.6}
+.us-tip strong{font-size:17px}
+.us-tip p{font-size:13px;margin:5px 0 0}
+.us-tip.warning{background:#fff2eb;color:#9c4928}
+.us-tip.positive{background:#ebf9ef;color:#196b42}
+.us-trend{font-size:12px;color:#70809c;margin:7px 0}
+.us-observation{font-size:12px;color:#7b889f;line-height:1.6;margin-top:12px}
+.us-sources{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;margin-top:10px}
+.us-sources a{color:#416bd0;text-decoration:none}
+@media(min-width:700px){.us-card-main{justify-content:flex-start;gap:24px}}
