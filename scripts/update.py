@@ -55,7 +55,7 @@ def calculate():
     d=d[d.date>=pd.Timestamp(today-timedelta(days=12*366))]
     y=yields(today-timedelta(days=12*366),today)
     m=d.merge(y,on='date').sort_values('date').drop_duplicates('date',keep='last').set_index('date')
-    if len(m)<500:raise ValueError('历史有效数据不足')
+    if len(m)<500:raise ValueError('历史有效数据不足: 指数记录='+str(len(d))+',指数首尾='+str((d.date.min(),d.date.max()))+',债券记录='+str(len(y))+',债券首尾='+str((y.date.min(),y.date.max()))+',交集='+str(len(m)))
     m['erp']=100/m.pe-m.y10
     m['spread10']=m.y10-m.y1
     m['spread30']=m.y30-m.y10
