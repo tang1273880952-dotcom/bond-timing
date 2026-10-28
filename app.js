@@ -45,11 +45,10 @@ function render() {
     '<div class="tag">'+grade(a.score)+'</div>'+
     '<div class="ownership" role="group" aria-label="'+safe(a.name)+'持仓状态"><button type="button" data-asset="'+a.id+'" data-held="false" class="'+(!held?'active':'')+'">未持有</button><button type="button" data-asset="'+a.id+'" data-held="true" class="'+(held?'active':'')+'">已持有</button></div>'+
     '<div class="action '+tip.tone+'"><strong>'+tip.title+'</strong><p>'+tip.detail+'</p></div></article>';}).join('');
-  const raw=Object.fromEntries(assets.map(a=>[a.id,a.score>=55?a.score-50:0]));
-  const total=Object.values(raw).reduce((a,b)=>a+b,0);
-  $('allocTitle').textContent=total?'新增资金的估值比例参考':'新增资金：等待 / 现金 100%';
-  $('bar').innerHTML=['csi500','bond10','bond30'].map(k=>'<div style="width:'+(total?(100*raw[k]/total):0)+'%"></div>').join('');
-  $('allocation').textContent=total?['csi500','bond10','bond30'].map(k=>names[k]+' '+Math.round(100*raw[k]/total)+'%').join(' · '):'这只是新资金配置提示，不是已有持仓的清仓信号。';
+  const eligible=assets.filter(a=>a.score>=55);
+  $('allocTitle').textContent=eligible.length===0?'当前估值没有明显新买优势':('新增资金可优先研究：'+eligible.map(a=>a.name).join('、'));
+  $('bar').innerHTML='';
+  $('allocation').textContent=eligible.length===0?'暂缓新增，不等于需要卖出已有持仓。':'不同资产的评分未进行跨资产回测校准，因此暂不自动分配资金比例。';
   $('details').innerHTML=assets.map(a=>'<h4>'+safe(a.name)+'</h4>'+(a.metrics||[]).map(m=>'<div class="item"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('')).join('');
 }
 $('cards').addEventListener('click',event=>{
