@@ -1,1 +1,5 @@
-{"success":false,"message":"首次同步尚未执行"}
+{
+  "attemptAt": "2026-10-29T00:44:58.426777+08:00",
+  "success": false,
+  "error": "历史有效数据不足"
+}
