@@ -2,7 +2,7 @@
 const names = {csi500:'中证500',bond10:'10年国债ETF',bond30:'30年国债ETF'};
 const $ = x => document.getElementById(x);
 const storageKey='bond-timing-positions-v1';
-let latest=null, syncStatus=null, selected={};
+let latest=null, syncStatus=null, selected={}, expanded={};
 try { selected=JSON.parse(localStorage.getItem(storageKey)||'{}')||{}; } catch(e) {selected={};}
 
 function grade(n) {
@@ -40,11 +40,17 @@ function render() {
   $('reason').textContent=top.score<55?'三类资产都未达到新增资金的估值门槛；这不等于必须卖掉已有仓位。':(top.score-assets[1].score>=15?'新增资金的估值性价比明显偏向'+top.name+'。':'新增资金可优先研究'+top.name+'，仍应比较风险和资产配置。');
   $('cards').innerHTML=assets.map((a,i)=>{
     const held=Boolean(selected[a.id]);const tip=advice(a,held);
-    return '<article class="card decision-card"><div class="asset-top"><h3>'+safe(a.name)+'</h3><span class="subrank">#'+(i+1)+'</span></div>'+
+    const open=Boolean(expanded[a.id]);
+    const metrics=(a.metrics||[]).map(m=>'<div class="card-metric"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('');
+    return '<article class="card decision-card" data-card="'+a.id+'" tabindex="0" aria-label="'+safe(a.name)+'：点击展开或收起判断依据">'+
+    '<div class="asset-top"><h3>'+safe(a.name)+'</h3><span class="subrank">#'+(i+1)+'</span></div>'+
     '<div class="score">'+a.score+'<small>/100 · 买入估值分</small></div>'+
     '<div class="tag">'+grade(a.score)+'</div>'+
-    '<div class="ownership" role="group" aria-label="'+safe(a.name)+'持仓状态"><button type="button" data-asset="'+a.id+'" data-held="false" class="'+(!held?'active':'')+'">未持有</button><button type="button" data-asset="'+a.id+'" data-held="true" class="'+(held?'active':'')+'">已持有</button></div>'+
-    '<div class="action '+tip.tone+'"><strong>'+tip.title+'</strong><p>'+tip.detail+'</p></div></article>';}).join('');
+    '<div class="ownership" role="group" aria-label="'+safe(a.name)+'持仓状态"><button type="button" data-asset="'+a.id+'" data-held="false" class="'+(!held?'active':'')+'" aria-pressed="'+(!held)+'">未持有</button><button type="button" data-asset="'+a.id+'" data-held="true" class="'+(held?'active':'')+'" aria-pressed="'+held+'">已持有</button></div>'+
+    '<div class="action '+tip.tone+'"><strong>'+tip.title+'</strong><p>'+tip.detail+'</p></div>'+
+    '<button type="button" class="expand-trigger" data-expand="'+a.id+'" aria-expanded="'+open+'">'+(open?'收起判断依据 ▲':'点击查看判断依据 ▼')+'</button>'+
+    (open?'<div class="card-metrics"><div class="mini-heading">指标明细 · '+safe(d.dataDate)+'</div>'+metrics+'<p>仅基于估值与收益率，不含你的真实持仓成本、ETF溢折价或经过回测的卖点。</p></div>':'')+
+    '</article>';}).join('');
   const eligible=assets.filter(a=>a.score>=55);
   $('allocTitle').textContent=eligible.length===0?'当前估值没有明显新买优势':('新增资金可优先研究：'+eligible.map(a=>a.name).join('、'));
   $('bar').innerHTML='';
@@ -52,10 +58,29 @@ function render() {
   $('details').innerHTML=assets.map(a=>'<h4>'+safe(a.name)+'</h4>'+(a.metrics||[]).map(m=>'<div class="item"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('')).join('');
 }
 $('cards').addEventListener('click',event=>{
-  const btn=event.target.closest('button[data-asset]');if(!btn)return;
-  selected[btn.dataset.asset]=btn.dataset.held==='true';
-  try{localStorage.setItem(storageKey,JSON.stringify(selected));}catch(e){}
+  const btn=event.target.closest('button[data-asset]');
+  if(btn){
+    selected[btn.dataset.asset]=btn.dataset.held==='true';
+    try{localStorage.setItem(storageKey,JSON.stringify(selected));}catch(e){}
+    render();
+    return;
+  }
+  const expandBtn=event.target.closest('[data-expand]');
+  const card=event.target.closest('[data-card]');
+  const id=expandBtn?expandBtn.dataset.expand:(card?card.dataset.card:null);
+  if(!id)return;
+  expanded[id]=!Boolean(expanded[id]);
   render();
+});
+$('cards').addEventListener('keydown',event=>{
+  if(event.target.matches('[data-card]')&&(event.key==='Enter'||event.key===' ')){
+    event.preventDefault();
+    const id=event.target.dataset.card;
+    expanded[id]=!Boolean(expanded[id]);
+    render();
+    const next=$('cards').querySelector('[data-card="'+id+'"]');
+    if(next)next.focus();
+  }
 });
 async function load() {
   try{
