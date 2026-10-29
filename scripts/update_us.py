@@ -50,7 +50,7 @@ def get_pe():
         value = float(numbers[-1].replace(",", ""))
         if not 0 < value < 200:
             continue
-        records.append((dt.normalize(), value, "estimate" in rawval.lower()))
+        records.append((dt.normalize(), value, ("estimate" in rawval.lower()) or ("†" in rawval) or ((dt.year, dt.month) == (datetime.now(TZ).year, datetime.now(TZ).month))))
     if len(records) < 120:
         raise ValueError("P/E source insufficient points: " + str(len(records)))
     frame = pd.DataFrame(records, columns=["date", "pe", "estimated"])
