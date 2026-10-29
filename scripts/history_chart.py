@@ -74,7 +74,7 @@ def _window_asof(src, anchor, years, frequency):
     if count < minimum or window.empty:
         return None
     # Refuse to mislabel incomplete lookbacks, even if the count looks high.
-    if window.date.iloc[0] > cutoff + pd.Timedelta(days=50):
+    if window.date.iloc[0] > cutoff + pd.Timedelta(days=24):
         return None
     values = window.erp
     return {

@@ -127,7 +127,7 @@ def calculate():
             raw_erp=official_csi500_erp(all_y,market_end,years=20)
             print("Official CSI500 historical bootstrap",len(raw_erp),flush=True)
         else:
-            back_years=max(0.35,min(9.5,(market_end-cached.date.max()).days/365.25+0.18))
+            back_years=max(1,min(9,int((market_end-cached.date.max()).days/365.25+1.5)))
             recent=official_csi500_erp(y,market_end,years=back_years)
             raw_erp=_clean(pd.concat([cached,recent],ignore_index=True),"erp")
             raw_erp=raw_erp[raw_erp.date>=market_end-pd.DateOffset(years=20)]

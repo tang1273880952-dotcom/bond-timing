@@ -86,3 +86,8 @@
   .history-zone-row small{grid-column:2;line-height:1.6}
   .history-zone-row{gap:4px 8px;padding:11px 7px}
 }
+
+/* Dynamic rolling ERP bands keep the reference curves visually subordinate to ERP. */
+#history-chart{position:relative}
+.history-svg{min-height:215px}
+@media(min-width:760px){.history-svg{max-height:350px}}
