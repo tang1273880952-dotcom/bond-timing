@@ -91,11 +91,32 @@ def _window_asof(src, anchor, years, frequency):
     }
 
 
-def build_history(erp_frame, frequency="weekly", source=None):
+def build_monthly_erp(pe, bond_yields):
+    """Match genuine monthly CSI 500 PE observations to previous 10Y bond yield.
+
+    The PE observations must be authentic month-end history (from the index
+    valuation source). No interpolation, forward fill or manufactured PE data.
+    """
+    pe = _clean(pe, "pe")
+    pe = pe[pe.pe > 0]
+    yields = _clean(bond_yields, "y10")
+    merged = pd.merge_asof(
+        pe, yields, on="date", direction="backward",
+        tolerance=pd.Timedelta(days=5)
+    ).dropna(subset=["y10"])
+    merged["erp"] = 100 / merged.pe - merged.y10
+    output = _clean(merged, "erp")
+    if len(output) < 115 or output.date.iloc[0] > pd.Timestamp("2007-05-31"):
+        raise ValueError("月度中证500ERP历史不足，无法延长10年滚动分位带")
+    return output
+
+
+def build_history(erp_frame, frequency="weekly", source=None, long_term_monthly=None):
     """Build point-in-time monthly rolling bands for visible last 10 years.
 
-    10y lines need up to 20 years of original ERP. Missing genuine history is
-    not filled, extrapolated, or calculated using future observations.
+    Daily 3y/5y bands never use future observations. Optional monthly 10y
+    extension uses a consistent monthly PE source dating back to 2007. No
+    interpolation and no mixing monthly with daily observations in a percentile.
     """
     if frequency not in ("weekly", "monthly"):
         raise ValueError("unsupported history frequency")
@@ -113,35 +134,63 @@ def build_history(erp_frame, frequency="weekly", source=None):
     visible["month"] = visible.date.dt.to_period("M")
     anchors = visible.drop_duplicates("month", keep="last").date.tolist()
     latest = float(src.erp.iloc[-1])
+    legacy = None
+    if long_term_monthly is not None:
+        legacy = _clean(long_term_monthly, "erp")
+        if len(legacy) < 180 or legacy.date.iloc[0] > pd.Timestamp("2007-05-31"):
+            raise ValueError("10年滚动带补全源的真实月度历史不足")
+        if (last_date - legacy.date.iloc[-1]).days > 36:
+            raise ValueError("10年滚动带补全源的最新数据已过期")
+        if len(legacy) > 300:
+            raise ValueError("长期补全源并非月度观测，拒绝混算")
     windows = {}
     for years in WINDOWS:
-        current = _window_asof(src, last_date, years, frequency)
+        active = legacy if years == 10 and legacy is not None else src
+        basis = "monthly" if active is legacy else frequency
+        current = _window_asof(active, active.date.iloc[-1], years, basis)
         if current is None:
             raise ValueError("当前近" + str(years) + "年有效估值样本不足")
         bands = []
         for anchor in anchors:
-            stats = _window_asof(src, anchor, years, frequency)
+            # For 10-year monthly extension, an anchor is a genuine monthly
+            # observation from the month-end provider, not an artificial date.
+            if active is legacy:
+                monthly_at_anchor = active.loc[active.date <= anchor]
+                if monthly_at_anchor.empty:
+                    continue
+                real_anchor = monthly_at_anchor.date.iloc[-1]
+                if anchor - real_anchor > pd.Timedelta(days=35):
+                    continue
+            else:
+                real_anchor = anchor
+            stats = _window_asof(active, real_anchor, years, basis)
             if stats is None:
                 continue  # Gap clearly visible, not an invented historical band.
             bands.append([
-                str(anchor.date()),
+                str(real_anchor.date()),
                 *[stats["p" + str(q)] for q in QUANTILES],
             ])
         windows[str(years)] = {
             "from": str((last_date - pd.DateOffset(years=years)).date()),
             "to": str(last_date.date()),
             **current,
+            "basis": ("月度真实观测" if basis == "monthly" else "日度真实观测"),
+            "source": ("乐咕乐股中证500月度PE及中国10年国债收益率"
+                       if active is legacy else
+                       ("中证指数官方日度PE及中国10年国债收益率"
+                        if basis == "weekly" else "月度历史PE及中国10年国债收益率")),
+            "referenceERP": round(float(active.erp.iloc[-1]), 4),
             "bands": bands,
             "bandsFrequency": "monthly",
             "availableFrom": bands[0][0] if bands else None,
         }
     current10 = windows["10"]
     return {
-        "version": 4,
+        "version": 5,
         "metric": "csi500_erp",
         "unit": "%",
         "frequency": frequency,
-        "reference": "月度滚动3/5/10年分位带；每个历史时点只使用当时及之前的真实ERP",
+        "reference": "3/5年按日度观测，10年历史补全带按月度真实观测；不同频率不混合计算分位，且每个历史点只用过去数据",
         "source": source or (
             "中证指数官方日度滚动PE及中国10年国债收益率"
             if frequency == "weekly"

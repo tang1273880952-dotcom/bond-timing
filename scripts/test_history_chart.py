@@ -2,7 +2,7 @@
 import unittest
 
 import pandas as pd
-from history_chart import build_history, official_csi500_erp
+from history_chart import build_history, build_monthly_erp, official_csi500_erp
 
 
 class TestHistoryChart(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestHistoryChart(unittest.TestCase):
     def test_real_weekly_and_complete_bands(self):
         result = build_history(self.frame)
         self.assertEqual(result["frequency"], "weekly")
-        self.assertEqual(result["version"], 4)
+        self.assertEqual(result["version"], 5)
         stock = result["series"]["csi500"]
         self.assertTrue(480 <= len(stock["points"]) <= 530)
         self.assertEqual(stock["points"][-1][0], "2026-10-28")
@@ -64,6 +64,33 @@ class TestHistoryChart(unittest.TestCase):
         r = build_history(monthly, frequency="monthly")
         self.assertEqual(r["frequency"], "monthly")
         self.assertTrue(len(r["series"]["csi500"]["periods"]["10"]["bands"]) >= 110)
+
+
+    def test_extend_ten_year_band_with_real_monthly_history(self):
+        monthly = self.frame.copy()
+        monthly["month"] = monthly.date.dt.to_period("M")
+        monthly = monthly.drop_duplicates("month", keep="last").drop(columns="month")
+        monthly = monthly[monthly.date >= pd.Timestamp("2007-01-01")]
+        result = build_history(self.frame, long_term_monthly=monthly)
+        p10 = result["series"]["csi500"]["periods"]["10"]
+        self.assertEqual(result["version"], 5)
+        self.assertEqual(p10["basis"], "月度真实观测")
+        self.assertTrue(p10["availableFrom"].startswith("2017"))
+        self.assertGreaterEqual(len(p10["bands"]), 115)
+        self.assertEqual(p10["bands"][-1][0], "2026-10-28")
+        self.assertEqual(p10["p80"], round(float(monthly.loc[
+            monthly.date >= monthly.date.iloc[-1] - pd.DateOffset(years=10)
+        ].erp.quantile(.8)), 4))
+        self.assertEqual(result["series"]["csi500"]["periods"]["3"]["basis"], "日度真实观测")
+
+    def test_monthly_pe_matches_only_past_yield(self):
+        dates = pd.date_range("2007-01-31", periods=239, freq="ME")
+        pe = pd.DataFrame({"date": dates, "pe": 20.0})
+        yields = pd.DataFrame({"date": dates, "y10": 2.0})
+        matched = build_monthly_erp(pe, yields)
+        self.assertEqual(len(matched), len(dates))
+        self.assertAlmostEqual(matched.erp.iloc[-1], 3.0)
+        self.assertEqual(str(matched.date.iloc[0].date()), "2007-01-31")
 
     def test_index_source_never_uses_future_yield(self):
         dates = pd.bdate_range("2016-10-20", "2026-10-28")
