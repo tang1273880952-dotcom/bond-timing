@@ -91,3 +91,12 @@
 #history-chart{position:relative}
 .history-svg{min-height:215px}
 @media(min-width:760px){.history-svg{max-height:350px}}
+
+/* Toggle the independently scaled CSI 500 index CLOSE overlay. */
+.history-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.history-index-toggle{font-size:12px;line-height:1.25;border-radius:9px;border:1px solid #d8c7ef;
+  background:#f6f1fc;color:#7045ac;padding:10px 12px;cursor:pointer;white-space:nowrap}
+.history-index-toggle.active{background:#ece2fb;border-color:#aa89d3;color:#62339d;font-weight:650}
+.history-index-toggle:disabled{background:#f6f6f8;color:#9ca2b0;border-color:#e6e8ef;cursor:default}
+.history-index-toggle:focus-visible{outline:2px solid #8450c6;outline-offset:2px}
+@media(max-width:650px){.history-actions{justify-content:space-between;width:100%}.history-index-toggle{font-size:11px;padding:8px 9px}}
