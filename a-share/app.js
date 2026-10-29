@@ -203,9 +203,11 @@ function renderBand(){
  $("band-details").innerHTML=detailsHTML(code);
 }
 async function load(){
- const t=Date.now(),results=await Promise.allSettled([
- fetch("./data/snapshot.json?t="+t,{cache:"no-store"}),fetch("./data/holdings.json?t="+t,{cache:"no-store"}),
- fetch("./data/quick.json?t="+t,{cache:"no-store"})
+ // Revalidate static JSON by URL instead of forcing a full 2 MB transfer on
+ // every visit. A changed GitHub Pages ETag triggers a fresh download.
+ const results=await Promise.allSettled([
+ fetch("./data/snapshot.json",{cache:"no-cache"}),fetch("./data/holdings.json",{cache:"no-cache"}),
+ fetch("./data/quick.json",{cache:"no-cache"})
  ]);
  for(let i=0;i<results.length;i++){if(results[i].status!=="fulfilled"||!results[i].value.ok)continue;try{const d=await results[i].value.json();if(i===0&&Array.isArray(d.stocks))market=d;if(i===1&&Array.isArray(d.positions))user=d;if(i===2&&d.quotes)quick=d}catch(e){}}
  $("status").textContent="行情日期："+safe(market.marketDate||"待首次更新")+" · 快速扫描："+safe(quick.generatedAt||"未完成")+" · 深度评分："+safe(market.generatedAt||"未验证")+" · 持仓云端同步："+safe(user.updatedAt||"尚无记录");
