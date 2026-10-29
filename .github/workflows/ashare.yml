@@ -13,7 +13,7 @@ permissions:
   pages: write
   id-token: write
 concurrency:
-  group: bond-timing
+  group: ashare-data-refresh
   cancel-in-progress: false
 jobs:
   update-and-publish:
