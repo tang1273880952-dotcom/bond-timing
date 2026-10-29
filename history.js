@@ -80,9 +80,12 @@
       '<div class="history-state '+zone.tone+'"><span>当前估值判断</span><strong>'+zone.name+'</strong></div>'+
       '<p class="history-asof">观测日期：'+d.date+' · '+(weekly?'周度ERP曲线':'月度ERP曲线')+'</p>';
     el('history-description').textContent=zone.text;
+    const bandStarts=p.bands.length ? dateValue(p.bands[0][0]) : NaN;
+    const incomplete=Number.isFinite(bandStarts)&&bandStarts>cutoff.getTime()+60*864e5;
     el('history-note').textContent='五条彩色曲线：在每个历史月末，用此前'+state.years+
       '年ERP观测重新计算10% / 20% / 50% / 80% / 90%分位。本月按最新交易日更新。'+
-      ' 当前参考线使用'+p.sampleCount+'个'+(weekly?'日度':'月度')+'样本。';
+      ' 当前参考线使用'+p.sampleCount+'个'+(weekly?'日度':'月度')+'样本。'+
+      (incomplete?' 较早时期缺少足够的真实日度历史，滚动参考带从'+p.bands[0][0]+'才开始绘制；空白区域不是0%。':'');
     el('history-legend').innerHTML=
       '<div class="legend-item"><span class="legend-line" style="--line:#3769D2;--dash:none"></span>蓝线 · ERP'+(weekly?'周度':'月度')+'真实走势</div>'+
       lines.map(l=>'<div class="legend-item"><span class="legend-line" style="--line:'+

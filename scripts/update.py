@@ -114,17 +114,17 @@ def calculate():
         cached=None
         if cache_path.exists():
             cached=_clean(pd.read_csv(cache_path),"erp")
-            if len(cached)<2400 or cached.date.min()>market_end-pd.DateOffset(years=15):
+            if len(cached)<2400 or cached.date.min()>market_end-pd.DateOffset(years=11):
                 cached=None
         if cached is None:
-            history_start=market_end-pd.DateOffset(years=20)-pd.Timedelta(days=16)
+            history_start=market_end-pd.DateOffset(years=16)-pd.Timedelta(days=16)
             older_end=y.date.min()-pd.Timedelta(days=1)
             if older_end>=history_start:
                 old_y=china_yields(history_start.date(),older_end.date())
                 all_y=pd.concat([old_y,y],ignore_index=True)
             else:
                 all_y=y
-            raw_erp=official_csi500_erp(all_y,market_end,years=20)
+            raw_erp=official_csi500_erp(all_y,market_end,years=16)
             print("Official CSI500 historical bootstrap",len(raw_erp),flush=True)
         else:
             back_years=max(1,min(9,int((market_end-cached.date.max()).days/365.25+1.5)))

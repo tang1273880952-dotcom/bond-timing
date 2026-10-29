@@ -56,7 +56,12 @@ def official_csi500_erp(yields, end, api=None, years=10):
     matched["erp"] = 100 / matched.pe - matched.y10
     matched = matched[matched.date >= end - pd.DateOffset(years=years)]
     span = (matched.date.iloc[-1] - matched.date.iloc[0]).days if len(matched) else 0
-    if years >= 10 and (len(matched) < years * 150 or span < (years - 1) * 365):
+    # Some providers expose about 15 years of daily index valuations even if
+    # requested for 20. Keep the authentic data; rolling 10y bands will begin
+    # only after each historical anchor has its full lookback window.
+    required_years = min(years - 1, 12)
+    required_count = min(years * 150, 2500)
+    if years >= 10 and (len(matched) < required_count or span < required_years * 365):
         raise ValueError("官方日度ERP长期历史不足: " + str(len(matched)))
     if years < 10 and len(matched) < 25:
         raise ValueError("官方近期ERP数据不足")
