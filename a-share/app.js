@@ -10,6 +10,7 @@ const normal=x=>/^\d{6}$/.test(String(x||"").trim())?String(x).trim():"";
 const num=x=>x===null||x===undefined||x===""?null:(Number.isFinite(Number(x))?Number(x):null);
 const asset=code=>(market.stocks||[]).find(s=>s.code===code)||((quick.quotes||{})[code]?{...(quick.quotes||{})[code],score:null,pbPct:null,name:(market.universe||{})[code]||(quick.quotes||{})[code].name}:{code,name:(market.universe||{})[code]||"未同步的股票",score:null});
 function qualityWord(s){
+ if(!currentQualified(s))return {label:s.flag||"最近行情或PB数据不满足核验要求",tone:"warn"};
  if(s.modelVersion!==VALUE_VERSION||!s.eligible)return {label:s.flag||"新版低估值模型待核验",tone:"warn"};
  if(s.score===null||s.score===undefined)return {label:"数据不足 · 待复核",tone:"warn"};
  if(s.flag)return {label:"风险复核 · 暂不入选",tone:"warn"};
@@ -19,6 +20,7 @@ function qualityWord(s){
  return {label:"暂不新增 · 核查风险",tone:"warn"};
 }
 function holdingAdvice(s){
+ if(!currentQualified(s))return "持仓仍独立监控；"+(s.flag||"最近行情、PB或财报尚未满足新版入榜要求")+"。这不等于应该卖出。";
  if(s.modelVersion!==VALUE_VERSION||!s.eligible)return "持仓仍独立跟踪；"+(s.flag||"新版财报模型待核验")+"。未通过新买入筛选不等于必须卖出。";
  if(s.score===null||s.score===undefined)return "持仓继续跟踪中，缺少核验过的财报/估值数据，暂不能作买卖判断。";
  if(s.flag)return "发现基本面或数据风险标记，建议先核对原因，再评估是否降低风险敞口。";
@@ -29,8 +31,8 @@ function holdingAdvice(s){
 function title(s,extra=""){
  let a=qualityWord(s);
  let text='<div class="stock-head"><div><div class="stock-title">'+safe(s.name)+' <span class="stock-code">'+safe(s.code)+'</span></div>'+
- (extra?'<div class="stock-code">'+safe(extra)+'</div>':'')+'</div><div class="score">'+(s.modelVersion!==VALUE_VERSION||!s.eligible||s.score===null||s.score===undefined?'—':fmt(s.score,0))+'<small>/100</small></div></div>';
- return text+'<div class="metrics"><div class="metric"><span>当前价格</span><strong>'+(num(s.price)!==null?fmt(s.price):'待同步')+'</strong></div><div class="metric"><span>市净率 PB</span><strong>'+fmt(s.pb)+'倍</strong></div><div class="metric"><span>历史PB分位</span><strong>'+(num(s.pbPct)!==null?fmt(s.pbPct,0)+'%':'待采集')+'</strong></div></div>'+
+ (extra?'<div class="stock-code">'+safe(extra)+'</div>':'')+'</div><div class="score">'+(!currentQualified(s)||s.score===null||s.score===undefined?'—':fmt(s.score,0))+'<small>/100</small></div></div>';
+ return text+'<div class="metrics"><div class="metric"><span>已记录价格</span><strong>'+(num(s.price)!==null?fmt(s.price):'待同步')+'</strong></div><div class="metric"><span>市净率 PB</span><strong>'+fmt(s.pb)+'倍</strong></div><div class="metric"><span>历史PB分位</span><strong>'+(num(s.pbPct)!==null?fmt(s.pbPct,0)+'%':'待采集')+'</strong></div></div>'+
  '<div class="msg '+a.tone+'">'+safe(s.action&&s.eligible?s.action:a.label)+'</div>';
 }
 function stockCard(s,extra="",holding=false){
@@ -49,8 +51,13 @@ function appendCards(target,items,extraFn,held=false){
 function currentQualified(s){
  if(s.modelVersion!==VALUE_VERSION||s.eligible!==true||s.flag||num(s.score)===null)return false;
  if(!(num(s.pe)>0&&num(s.pe)<=35&&num(s.pb)>0&&num(s.pb)<=4.5&&num(s.pbPct)!==null&&num(s.pbPct)<=35))return false;
- const q=(quick.quotes||{})[s.code];
- if(q&&q.date>=s.date&&q.stage!=="待财报复核")return false;
+ const q=(quick.quotes||{})[s.code],h=(market.history||{})[s.code];
+ if(!q||q.stage!=="待财报复核"||!h||h.end!==s.date)return false;
+ const latest=quick.marketDate||market.marketDate||"";
+ const ms=x=>Date.parse(String(x||"")+"T00:00:00Z");
+ if(!Number.isFinite(ms(latest))||!Number.isFinite(ms(s.date))||!Number.isFinite(ms(q.date)))return false;
+ if(ms(latest)-ms(s.date)>7*86400000||ms(latest)-ms(q.date)>7*86400000)return false;
+ if(ms(s.date)>ms(latest)||ms(q.date)>ms(latest))return false;
  return true;
 }
 function topList(){
@@ -104,7 +111,9 @@ function renderQuickPreview(){
  const el=$("rough-results"),note=$("rough-note");
  if(!el||!note)return;
  el.textContent="";
- const items=Object.values(quick.quotes||{}).filter(x=>x.stage==="待财报复核"&&num(x.pe)!==null&&num(x.pb)!==null);
+ const marketDay=quick.marketDate||"";
+ const cutoff=Date.parse(marketDay+"T00:00:00Z")-7*86400000;
+ const items=Object.values(quick.quotes||{}).filter(x=>x.stage==="待财报复核"&&num(x.pe)!==null&&num(x.pb)!==null&&Date.parse((x.date||"")+"T00:00:00Z")>=cutoff);
  // Not a quality ranking: sort only for an illustrative cheap-valuation watchlist.
  items.sort((a,b)=>(num(a.pb)||99)-(num(b.pb)||99));
  note.textContent="目前通过第一层最新估值粗筛 "+items.length+" 只，仅显示市净率较低的12只作为待复核样本。PE可能是动态或TTM口径，不能直接视为优质股、低估股或者买入信号。";
@@ -156,12 +165,12 @@ function chart(h){
 }
 function detailsHTML(code){
  const s=asset(code),h=(market.history||{})[code],hold=(user.positions||[]).find(p=>p.code===code),q=(quick.quotes||{})[code];
- let bps=h&&num(h.currentBps),ranges=bps!==null&&h?[
+ let bps=h&&num(h.currentBps),ranges=bps!==null&&h&&h.end===s.date?[
  ["低估参考（PB10%）",bps*Number(h.p10)],["偏低估值（PB25%）",bps*Number(h.p25)],["历史中位（PB50%）",bps*Number(h.p50)],["偏贵观察（PB75%）",bps*Number(h.p75)],["高估观察（PB90%）",bps*Number(h.p90)]
  ]:[];
  let html='<h2>'+safe(s.name)+' <small>'+safe(s.code)+'</small></h2><p class="minor">数据日期 '+safe(s.date||market.marketDate||"未同步")+' · '+safe(s.industry||"行业待确认")+'</p>'+
- '<div class="row"><span>综合评分</span><b>'+((s.modelVersion!==VALUE_VERSION||!s.eligible||num(s.score)===null)?"新版低估值模型待核验":fmt(s.score,0)+"/100")+'</b></div>'+
- '<div class="row"><span>当前收盘价</span><b>¥'+fmt(s.price)+'</b></div>'+
+ '<div class="row"><span>综合评分</span><b>'+((!currentQualified(s)||num(s.score)===null)?"新版低估值模型待核验":fmt(s.score,0)+"/100")+'</b></div>'+
+ '<div class="row"><span>已记录收盘价</span><b>¥'+fmt(s.price)+'</b></div>'+
  '<div class="row"><span>PE（'+safe(s.peBasis||((market.stocks||[]).some(x=>x.code===code)?"TTM市盈率（深度数据）":q?.peBasis)||"口径未核验")+'）/ PB</span><b>'+fmt(s.pe)+' / '+fmt(s.pb)+'</b></div>'+
  '<div class="row"><span>质量 / 估值 / 成长 / 风险</span><b>'+["qualityScore","valuationScore","growthScore","riskScore"].map(k=>fmt(s[k],0)).join(" / ")+'</b></div>'+
  '<div class="row"><span>ROE（上个完整年度）</span><b>'+fmt(s.roe)+'%</b></div>'+
