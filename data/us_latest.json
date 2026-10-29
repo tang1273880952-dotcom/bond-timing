@@ -6,8 +6,8 @@
   "valuationDate": "2026-10-28",
   "yieldDate": "2026-10-28",
   "priceDate": "2026-10-28",
-  "generatedAt": "2026-10-29T08:03:05.612829+08:00",
-  "estimatedPE": false,
+  "generatedAt": "2026-10-29T08:04:08.676608+08:00",
+  "estimatedPE": true,
   "trend": "above_10m",
   "trendSourceWarning": null,
   "metrics": [
@@ -33,7 +33,7 @@
     ],
     [
       "PE数据日期",
-      "2026-10-28"
+      "2026-10-28 · 估算"
     ],
     [
       "美国10Y月度来源日期",
