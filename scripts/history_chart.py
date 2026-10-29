@@ -178,96 +178,92 @@ def build_monthly_erp(pe, bond_yields):
 
 
 def build_history(erp_frame, frequency="weekly", source=None, long_term_monthly=None):
-    """Build point-in-time monthly rolling bands for visible last 10 years.
+    """Weekly ERP with five HORIZONTAL valuation references per 3/5/10-year view.
 
-    Daily 3y/5y bands never use future observations. Optional monthly 10y
-    extension uses a consistent monthly PE source dating back to 2007. No
-    interpolation and no mixing monthly with daily observations in a percentile.
+    Reference quantiles are locked at the previous *completed calendar month*,
+    so the five lines update once per month, not every trading day. Only real
+    historical observations available at that cutoff enter the distribution.
+    The displayed current ERP and its rank against that frozen distribution may
+    update daily. Ten-year lines use a consistent monthly source when available.
     """
     if frequency not in ("weekly", "monthly"):
         raise ValueError("unsupported history frequency")
     src = _clean(erp_frame, "erp")
     if len(src) < 80:
-        raise ValueError("历史ERP有效样本不足: " + str(len(src)))
+        raise ValueError("ERP历史样本不足")
     last_date = src.date.iloc[-1]
-    begin = last_date - pd.DateOffset(years=10)
-    visible = src[src.date >= begin].copy()
-    period = "W-SUN" if frequency == "weekly" else "M"
-    visible["period"] = visible.date.dt.to_period(period)
+    first_visible = last_date - pd.DateOffset(years=10)
+    visible = src[src.date >= first_visible].copy()
+    visible["period"] = visible.date.dt.to_period(
+        "W-SUN" if frequency == "weekly" else "M"
+    )
     display = visible.drop_duplicates("period", keep="last")
     if len(display) < 24:
-        raise ValueError("历史走势图有效时间点不足")
-    visible["month"] = visible.date.dt.to_period("M")
-    anchors = visible.drop_duplicates("month", keep="last").date.tolist()
+        raise ValueError("历史走势图观测点不足")
     latest = float(src.erp.iloc[-1])
     legacy = None
     if long_term_monthly is not None:
         legacy = _clean(long_term_monthly, "erp")
         if len(legacy) < 180 or legacy.date.iloc[0] > pd.Timestamp("2007-05-31"):
-            raise ValueError("10年滚动带补全源的真实月度历史不足")
-        if (last_date - legacy.date.iloc[-1]).days > 36:
-            raise ValueError("10年滚动带补全源的最新数据已过期")
-        if len(legacy) > 300:
-            raise ValueError("长期补全源并非月度观测，拒绝混算")
+            raise ValueError("10年历史月度数据不足")
+        if (last_date - legacy.date.iloc[-1]).days > 36 or len(legacy) > 300:
+            raise ValueError("10年历史月度数据过期或频率异常")
+
+    # Previous month is always finished; do not move references mid-month.
+    month_boundary = last_date.to_period("M").start_time
+    month_end = month_boundary - pd.Timedelta(days=1)
     windows = {}
     for years in WINDOWS:
         active = legacy if years == 10 and legacy is not None else src
         basis = "monthly" if active is legacy else frequency
-        current = _window_asof(active, active.date.iloc[-1], years, basis)
-        if current is None:
-            raise ValueError("当前近" + str(years) + "年有效估值样本不足")
-        bands = []
-        for anchor in anchors:
-            # For 10-year monthly extension, an anchor is a genuine monthly
-            # observation from the month-end provider, not an artificial date.
-            if active is legacy:
-                monthly_at_anchor = active.loc[active.date <= anchor]
-                if monthly_at_anchor.empty:
-                    continue
-                real_anchor = monthly_at_anchor.date.iloc[-1]
-                if anchor - real_anchor > pd.Timedelta(days=35):
-                    continue
-            else:
-                real_anchor = anchor
-            stats = _window_asof(active, real_anchor, years, basis)
-            if stats is None:
-                continue  # Gap clearly visible, not an invented historical band.
-            bands.append([
-                str(real_anchor.date()),
-                *[stats["p" + str(q)] for q in QUANTILES],
-            ])
+        available = active[active.date <= month_end]
+        if available.empty or month_end - available.date.iloc[-1] > pd.Timedelta(days=40):
+            raise ValueError(f"近{years}年参考线缺少上一完整月份数据")
+        reference_date = available.date.iloc[-1]
+        baseline = _window_asof(active, reference_date, years, basis)
+        if baseline is None:
+            raise ValueError(f"近{years}年完整历史样本不足")
+        window = active[
+            (active.date >= reference_date - pd.DateOffset(years=years)) &
+            (active.date <= reference_date)
+        ]
+        # Rank today's ERP against the locked historical distribution; the
+        # quantile lines remain unchanged until the next completed month.
+        latest_rank = round(float(window.erp.le(latest).mean() * 100), 2)
         windows[str(years)] = {
-            "from": str((last_date - pd.DateOffset(years=years)).date()),
-            "to": str(last_date.date()),
-            **current,
-            "basis": ("月度真实观测" if basis == "monthly" else "日度真实观测"),
+            "from": str((reference_date - pd.DateOffset(years=years)).date()),
+            "to": str(reference_date.date()),
+            "referenceDate": str(reference_date.date()),
+            "referenceMonth": str(reference_date.to_period("M")),
+            "referenceMode": "上一个完整自然月的最后有效估值日；每月更新一次水平参考线",
+            "percentile": latest_rank,
+            "sampleCount": baseline["sampleCount"],
+            **{f"p{q}": baseline[f"p{q}"] for q in QUANTILES},
+            "basis": "月度真实观测" if basis == "monthly" else "日度真实观测",
             "source": ("乐咕乐股中证500月度PE及中国10年国债收益率"
                        if active is legacy else
                        ("中证指数官方日度PE及中国10年国债收益率"
-                        if basis == "weekly" else "月度历史PE及中国10年国债收益率")),
-            "referenceERP": round(float(active.erp.iloc[-1]), 4),
-            "bands": bands,
-            "bandsFrequency": "monthly",
-            "availableFrom": bands[0][0] if bands else None,
+                        if basis == "weekly" else
+                        "月度历史PE及中国10年国债收益率")),
+            "referenceERP": round(float(window.erp.iloc[-1]), 4),
         }
-    current10 = windows["10"]
+    ten = windows["10"]
     return {
-        "version": 5,
+        "version": 6,
         "metric": "csi500_erp",
         "unit": "%",
         "frequency": frequency,
-        "reference": "3/5年按日度观测，10年历史补全带按月度真实观测；不同频率不混合计算分位，且每个历史点只用过去数据",
+        "reference": "水平分位线每月按上个完整月份末3/5/10年真实历史分别计算，当前ERP分位随最新数据变动；非历史逐点买卖信号",
         "source": source or (
             "中证指数官方日度滚动PE及中国10年国债收益率"
-            if frequency == "weekly"
-            else "月度滚动PE及中国10年国债收益率"
+            if frequency == "weekly" else "月度滚动PE及中国10年国债收益率"
         ),
         "series": {
             "csi500": {
                 "date": str(last_date.date()),
                 "latest": round(latest, 4),
-                "percentile": current10["percentile"],
-                **{key: current10[key] for key in ("p10", "p20", "p50", "p80", "p90")},
+                "percentile": ten["percentile"],
+                **{f"p{q}": ten[f"p{q}"] for q in QUANTILES},
                 "sampleCount": len(visible),
                 "historyStartDate": str(src.date.iloc[0].date()),
                 "periods": windows,

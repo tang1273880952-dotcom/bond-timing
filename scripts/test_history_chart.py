@@ -1,8 +1,12 @@
-"""Test real ERP sampling and monthly rolling bands without future leakage."""
+"""Regression tests: monthly-frozen horizontal ERP percentile references."""
 import unittest
 
 import pandas as pd
-from history_chart import build_history, build_monthly_erp, official_csi500_erp, official_csi500_close, build_index_overlay
+
+from history_chart import (
+    build_history, build_monthly_erp, official_csi500_erp,
+    official_csi500_close, build_index_overlay,
+)
 
 
 class TestHistoryChart(unittest.TestCase):
@@ -13,77 +17,80 @@ class TestHistoryChart(unittest.TestCase):
             "erp": [0.8 + (i % 311) / 100 for i in range(len(dates))],
         })
 
-    def test_real_weekly_and_complete_bands(self):
+    def test_weekly_true_erp_and_five_horizontals(self):
         result = build_history(self.frame)
+        self.assertEqual(result["version"], 6)
         self.assertEqual(result["frequency"], "weekly")
-        self.assertEqual(result["version"], 5)
-        stock = result["series"]["csi500"]
-        self.assertTrue(480 <= len(stock["points"]) <= 530)
-        self.assertEqual(stock["points"][-1][0], "2026-10-28")
-        for date, value in stock["points"]:
-            actual = self.frame.loc[self.frame.date == pd.Timestamp(date), "erp"]
-            self.assertEqual(value, round(float(actual.iloc[0]), 4))
+        d = result["series"]["csi500"]
+        self.assertTrue(480 <= len(d["points"]) <= 530)
+        self.assertEqual(d["points"][-1][0], "2026-10-28")
         for years in (3, 5, 10):
-            p = stock["periods"][str(years)]
-            cutoff = self.frame.date.iloc[-1] - pd.DateOffset(years=years)
-            v = self.frame.loc[self.frame.date >= cutoff, "erp"]
-            self.assertEqual(p["sampleCount"], len(v))
-            self.assertEqual(p["p90"], round(float(v.quantile(.9)), 4))
-            self.assertEqual(p["percentile"],
-                             round(float(v.le(v.iloc[-1]).mean()*100), 2))
-            self.assertTrue(len(p["bands"]) >= 115)
-            for row in p["bands"]:
-                self.assertEqual(len(row), 6)
-            self.assertEqual(p["bands"][-1][0], "2026-10-28")
+            ref = d["periods"][str(years)]
+            self.assertEqual(ref["referenceDate"], "2026-09-30")
+            self.assertEqual(ref["referenceMonth"], "2026-09")
+            self.assertNotIn("bands", ref)
+            values = self.frame.loc[
+                (self.frame.date >= pd.Timestamp("2026-09-30") - pd.DateOffset(years=years)) &
+                (self.frame.date <= pd.Timestamp("2026-09-30")), "erp"
+            ]
+            self.assertEqual(ref["sampleCount"], len(values))
+            for q in (10, 20, 50, 80, 90):
+                self.assertEqual(ref[f"p{q}"], round(float(values.quantile(q / 100)), 4))
+            self.assertEqual(ref["percentile"], round(float(
+                values.le(self.frame.erp.iloc[-1]).mean() * 100
+            ), 2))
+            self.assertTrue(ref["p10"] <= ref["p20"] <= ref["p50"] <=
+                            ref["p80"] <= ref["p90"])
 
-    def test_no_lookahead_or_backfill(self):
-        future = self.frame.copy()
-        target = pd.Timestamp("2021-09-30")
-        after = future.date > target
-        changed = future.copy()
-        changed.loc[after, "erp"] += 250
-        original = build_history(future)["series"]["csi500"]["periods"]["5"]["bands"]
-        modified = build_history(changed)["series"]["csi500"]["periods"]["5"]["bands"]
-        before1 = [row for row in original if row[0] <= str(target.date())]
-        before2 = [row for row in modified if row[0] <= str(target.date())]
-        self.assertEqual(before1, before2)
-        self.assertNotEqual(original[-1][3], modified[-1][3])
+    def test_reference_stable_throughout_current_month(self):
+        early = self.frame[self.frame.date <= pd.Timestamp("2026-10-09")]
+        late = self.frame[self.frame.date <= pd.Timestamp("2026-10-28")]
+        x = build_history(early)["series"]["csi500"]["periods"]
+        y = build_history(late)["series"]["csi500"]["periods"]
+        for years in ("3", "5", "10"):
+            for q in (10, 20, 50, 80, 90):
+                self.assertEqual(x[years][f"p{q}"], y[years][f"p{q}"])
+            self.assertEqual(x[years]["referenceDate"], y[years]["referenceDate"])
 
-    def test_real_history_gap_not_fabricated(self):
-        f = self.frame[self.frame.date >= pd.Timestamp("2016-10-28")]
-        r = build_history(f)
-        bands10 = r["series"]["csi500"]["periods"]["10"]["bands"]
-        self.assertEqual(len(bands10), 1)
-        self.assertEqual(bands10[-1][0], "2026-10-28")
-        self.assertTrue(len(r["series"]["csi500"]["periods"]["3"]["bands"]) >= 80)
+    def test_reference_changes_after_month_turn(self):
+        early = build_history(self.frame[
+            self.frame.date <= pd.Timestamp("2026-09-30")
+        ])["series"]["csi500"]["periods"]
+        late = build_history(self.frame)["series"]["csi500"]["periods"]
+        for years in ("3", "5", "10"):
+            self.assertEqual(early[years]["referenceMonth"], "2026-08")
+            self.assertEqual(late[years]["referenceMonth"], "2026-09")
+            self.assertNotEqual(early[years]["sampleCount"], late[years]["sampleCount"])
+
+    def test_missing_full_lookback_is_not_fabricated(self):
+        incomplete = self.frame[self.frame.date >= pd.Timestamp("2016-10-28")]
+        with self.assertRaises(ValueError):
+            build_history(incomplete)
 
     def test_monthly_fallback_labelled(self):
-        f = self.frame.copy()
-        f["month"] = f.date.dt.to_period("M")
-        monthly = f.drop_duplicates("month", keep="last")
-        r = build_history(monthly, frequency="monthly")
-        self.assertEqual(r["frequency"], "monthly")
-        self.assertTrue(len(r["series"]["csi500"]["periods"]["10"]["bands"]) >= 110)
+        m = self.frame.copy()
+        m["month"] = m.date.dt.to_period("M")
+        m = m.drop_duplicates("month", keep="last")
+        result = build_history(m, frequency="monthly")
+        self.assertEqual(result["frequency"], "monthly")
+        self.assertEqual(result["series"]["csi500"]["periods"]["10"]["basis"], "月度真实观测")
+        self.assertEqual(result["series"]["csi500"]["periods"]["10"]["referenceMonth"], "2026-09")
 
-
-    def test_extend_ten_year_band_with_real_monthly_history(self):
-        monthly = self.frame.copy()
-        monthly["month"] = monthly.date.dt.to_period("M")
-        monthly = monthly.drop_duplicates("month", keep="last").drop(columns="month")
-        monthly = monthly[monthly.date >= pd.Timestamp("2007-01-01")]
-        result = build_history(self.frame, long_term_monthly=monthly)
-        p10 = result["series"]["csi500"]["periods"]["10"]
-        self.assertEqual(result["version"], 5)
-        self.assertEqual(p10["basis"], "月度真实观测")
-        self.assertTrue(p10["availableFrom"].startswith("2017"))
-        self.assertGreaterEqual(len(p10["bands"]), 115)
-        self.assertEqual(p10["bands"][-1][0], "2026-10-28")
-        self.assertEqual(p10["p80"], round(float(monthly.loc[
-            monthly.date >= monthly.date.iloc[-1] - pd.DateOffset(years=10)
-        ].erp.quantile(.8)), 4))
-        self.assertEqual(result["series"]["csi500"]["periods"]["3"]["basis"], "日度真实观测")
-        self.assertEqual(p10["bands"][0][0][:7], "2017-01")
-        self.assertEqual(p10["referenceERP"], round(float(monthly.erp.iloc[-1]), 4))
+    def test_ten_year_legacy_source_is_consistent(self):
+        m = self.frame.copy()
+        m["month"] = m.date.dt.to_period("M")
+        m = m.drop_duplicates("month", keep="last")
+        m = m[m.date >= pd.Timestamp("2007-01-01")]
+        result = build_history(self.frame, long_term_monthly=m)
+        periods = result["series"]["csi500"]["periods"]
+        self.assertEqual(periods["10"]["basis"], "月度真实观测")
+        self.assertEqual(periods["3"]["basis"], "日度真实观测")
+        self.assertEqual(periods["10"]["referenceDate"], "2026-09-30")
+        v = m.loc[
+            (m.date >= pd.Timestamp("2026-09-30") - pd.DateOffset(years=10)) &
+            (m.date <= pd.Timestamp("2026-09-30")), "erp"
+        ]
+        self.assertEqual(periods["10"]["p80"], round(float(v.quantile(.8)), 4))
 
     def test_monthly_pe_matches_only_past_yield(self):
         dates = pd.date_range("2007-01-31", periods=239, freq="ME")
