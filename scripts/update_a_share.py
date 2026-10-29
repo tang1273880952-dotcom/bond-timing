@@ -6,6 +6,7 @@ import json
 import math
 import os
 import re
+import hashlib
 import traceback
 from datetime import datetime, date, timedelta
 from pathlib import Path
@@ -20,13 +21,9 @@ STATUS=OUT/"status.json"
 TODAY=datetime.now(ZoneInfo("Asia/Shanghai")).date()
 MAX_FINANCIAL=int(os.environ.get("ASHARE_MAX_FINANCIAL","40"))
 MAX_FALLBACK=int(os.environ.get("ASHARE_MAX_FALLBACK","70"))
-PRIORITY=["603345","300124","601888","603288","300015","300760","002311","603733","603187","601311",
-"600970","688016","600009","603899","000333","000651","600036","601318","600519","601288","601988","600015",
-"600887","600585","600019","600988","601899","601162","000858","000568","600809","600276","300750",
-"600900","600028","601857","601088","601225","601668","601390","601688","600030","600048","601155",
-"000002","600383","601601","600104","000895","002714","603369","600398","600872","601012",
-"002304","603288","688111","600406","600438","600309","601766","601919","601600","603605","600547"]
-PRIORITY=list(dict.fromkeys(PRIORITY))
+# The screen must not preferentially select companies from past conversations.
+# Only user-owned holdings/watchlist have a priority lane; the discovery lane
+# rotates through the exchange-wide BaoStock security master.
 FINANCIAL_WORDS=("银行","保险","证券","信托")
 def val(v):
     try:
@@ -203,52 +200,95 @@ def compute():
     login=bs.login()
     if login.error_code!="0":raise RuntimeError("BaoStock login failed: "+login.error_msg)
     try:
-        # Stock names are needed even if Eastmoney's full-market snapshot fails.
-        basic_names={}
+        # Obtain the full live listed-stock code universe, independent of the
+        # 64 previously discussed names. BaoStock exposes security master fields.
+        master = {}
         try:
             basic=bs.query_stock_basic()
-            if basic.error_code=="0":
-                # BaoStock get_data() relies on pandas.DataFrame.append; avoid it.
-                columns=list(basic.fields)
-                if "code" in columns and "code_name" in columns:
-                    ci=columns.index("code")
-                    ni=columns.index("code_name")
-                    while basic.error_code=="0" and basic.next():
-                        rec=basic.get_row_data()
-                        raw=str(rec[ci])
-                        if len(raw)>=9 and raw[:3] in ("sh.","sz."):
-                            basic_names[raw[3:]]=str(rec[ni]).strip()
-            print("BaoStock available code names",len(basic_names),flush=True)
+            if basic.error_code!="0":
+                raise ValueError("BaoStock security master: "+str(basic.error_msg))
+            cols=list(basic.fields)
+            required=("code","code_name")
+            if not all(c in cols for c in required):
+                raise ValueError("Missing stock-master fields: "+str(cols))
+            while basic.error_code=="0" and basic.next():
+                row=dict(zip(cols,basic.get_row_data()))
+                raw=str(row["code"])
+                if not raw.startswith(("sh.","sz.")):
+                    continue
+                code=raw[3:]
+                if not re.fullmatch(r"(00|30|60|68)\d{4}",code):
+                    continue
+                if "type" in row and str(row["type"]) not in ("","1"):
+                    continue
+                if "status" in row and str(row["status"]) in ("0","-1"):
+                    continue
+                name=str(row["code_name"]).strip()
+                if not name:
+                    continue
+                master[code]=name
+            print("Full BaoStock listed A-share universe",len(master),flush=True)
         except Exception as exc:
-            print("BaoStock stock name lookup unavailable",str(exc)[:180],flush=True)
+            print("Security master unavailable:",str(exc)[:180],flush=True)
+        if len(master)<2000:
+            # Do not mislabel a small fallback sample as an all-A-share scan.
+            master={c:v for c,v in (old.get("universe") or {}).items()
+                    if re.fullmatch(r"(00|30|60|68)\d{4}",c)}
+            print("Using previously verified security master",len(master),flush=True)
         for code,stock in cache.items():
-            if stock.get("name") in ("未同步","",None) and code in basic_names:
-                stock["name"]=basic_names[code]
+            if stock.get("name") in ("未同步","",None) and code in master:
+                stock["name"]=master[code]
         for code,data in spot.items():
             stock=cache.get(code,blank(code,data["name"]))
             stock.update(data)
             cache[code]=stock
-        todo=list(dict.fromkeys(sorted(manual)+PRIORITY))
-        # Avoid populating high-score from cheap PE alone; only candidates with healthy basic valuation.
-        cheap=[c for c,s in cache.items() if val(s.get("pb")) is not None and .45<=s["pb"]<=3.5 and val(s.get("pe")) is not None and 1<s["pe"]<=28 and not "ST" in s.get("name","").upper()]
-        cheap.sort(key=lambda c:(cache[c].get("pb",99)+.035*cache[c].get("pe",999)))
-        # rotate candidate evaluation so the verified coverage expands over days
-        epoch=int(TODAY.strftime("%Y%m%d"))
-        new=[c for c in cheap if not cache[c].get("financeUpdated") or c not in hist]
-        stale=[c for c in cheap if c not in new]
-        start=(epoch%max(1,len(stale)))
-        rotate=stale[start:]+stale[:start]
-        todo=list(dict.fromkeys(todo+new+rotate))[:MAX_FINANCIAL]
-        if not spot_success:
-            known=list(dict.fromkeys(sorted(manual)+PRIORITY))
-            # Sample additional already known stock codes when all-market endpoint fails
-            todo=list(dict.fromkeys(known+list(cache.keys())))[:MAX_FALLBACK]
-            for code in todo:cache.setdefault(code,blank(code))
+        manual=sorted(c for c in manual if re.fullmatch(r"(00|30|60|68)\d{4}",c))
+        # Stable, shuffled order prevents a low-code / familiar-stock bias.
+        # The first lane reserves the user's holdings, not their conversation history.
+        candidates=[c for c in master if not ("ST" in master[c].upper())]
+        if spot_success:
+            # A full live snapshot allows a cheap valuation prefilter, without
+            # removing stocks from the visible exchange-wide universe.
+            candidates=[c for c in candidates if c in spot and
+                        val(spot[c].get("pe")) is not None and 0<spot[c]["pe"]<=40 and
+                        val(spot[c].get("pb")) is not None and 0<spot[c]["pb"]<=5]
+        candidates.sort(key=lambda c:hashlib.sha256(("ashare-v3:"+c).encode()).hexdigest())
+        recently_attempted=old.get("scanAttempts") or {}
+        attempted={c:d for c,d in recently_attempted.items() if isinstance(d,str) and
+                   (lambda x: (TODAY-x).days<=14 if x<=TODAY else False)(date.fromisoformat(d))}
+        # 75% of each batch broadens the scanned universe, leaving some room
+        # for maintaining previously validated data and user holdings.
+        limit=MAX_FINANCIAL if spot_success else MAX_FALLBACK
+        remaining=max(0,limit-len(manual))
+        new_slots=max(0,int(remaining*.75))
+        fresh=[c for c in candidates if c not in cache and c not in attempted]
+        refresh=[c for c in candidates if c in cache and
+                 (c not in hist or not cache[c].get("financeUpdated") or
+                  (TODAY-date.fromisoformat(str(cache[c].get("date","1970-01-01")))).days>5)]
+        # Never spend the whole daily budget repeatedly on the same initial 64.
+        refresh.sort(key=lambda c:(0 if cache[c].get("score") is not None else 1,
+                                   cache[c].get("financeUpdated",""),c))
+        todo=list(dict.fromkeys(manual+fresh[:new_slots]+refresh))[:limit]
+        if len(todo)<limit:
+            more=[c for c in candidates if c not in todo and c not in attempted]
+            todo+=more[:limit-len(todo)]
+        # If full security-master access fails, only a known limited sample is
+        # eligible; no claims are made about coverage of all listed companies.
+        if not todo and not master:
+            todo=list(dict.fromkeys(manual+list(cache)))[:limit]
+        for code in todo:
+            attempted[code]=str(TODAY)
+            cache.setdefault(code,blank(code,master.get(code,"未同步")))
+        for code,stock in cache.items():
+            if code in master and stock.get("name") in ("未同步","",None):
+                stock["name"]=master[code]
+        print("Selection breadth: universe",len(master),"new",len(fresh[:new_slots]),
+              "held",len(manual),"selected",len(todo),flush=True)
         now_fin=0
         for idx,code in enumerate(todo,1):
             s=cache.setdefault(code,blank(code))
-            if s.get("name") in ("未同步","",None) and code in basic_names:
-                s["name"]=basic_names[code]
+            if s.get("name") in ("未同步","",None) and code in master:
+                s["name"]=master[code]
             if not spot_success or s.get("price") is None:
                 quote=get_latest_bs(bs,code)
                 if quote:s.update(quote)
@@ -287,13 +327,15 @@ def compute():
         data={"mode":"live" if validated else "partial",
               "generatedAt":datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds"),
               "marketDate":max((s.get("date") for s in stocks if s.get("date")),default=None),
-              "coverage":{"market":market_count if spot_success else len(stocks),
-                          "scanned":effective_count,"qualityVerified":len(validated),"ranking":min(10,len(validated))},
+              "coverage":{"market":len(master) if master else None,
+                          "scanned":effective_count,"qualityVerified":len(validated),"ranking":min(10,len(validated)),
+                          "fullQuoteSnapshot":spot_success,"batchSize":len(todo)},
+              "universe":master,"scanAttempts":attempted,
               "stocks":stocks,"top":[s["code"] for s in validated[:10]],
               "history":hist,
               "method":"仅沪深A股；全市场行情初筛与轮动核验财务；综合分=估值35%+质量35%+增长20%+风险10%。金融行业等待专用模型；没有报告或PB历史时不生成综合评分。","sources":["AkShare Eastmoney A-share spot","BaoStock financial statements","BaoStock historical daily peTTM/pbMRQ"]}
         FILE.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf8")
-        print("VALIDATED",len(validated),"quotes",effective_count,"market",market_count,"top",data["top"],flush=True)
+        print("VALIDATED",len(validated),"quotes",effective_count,"universe",len(master),"top",data["top"],flush=True)
         return data
     finally:bs.logout()
 def main():
