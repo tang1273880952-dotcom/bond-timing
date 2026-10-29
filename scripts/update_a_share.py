@@ -12,6 +12,7 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import pandas as pd
+from a_share_value_model import MODEL_VERSION,financial,quick_pass,quick_rank,rotation_key,evaluate
 
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"a-share"/"data"
@@ -24,7 +25,7 @@ MAX_FALLBACK=int(os.environ.get("ASHARE_MAX_FALLBACK","70"))
 # The screen must not preferentially select companies from past conversations.
 # Only user-owned holdings/watchlist have a priority lane; the discovery lane
 # rotates through the exchange-wide BaoStock security master.
-FINANCIAL_WORDS=("银行","保险","证券","信托")
+# Financial sector recognition is implemented in a_share_value_model.
 def val(v):
     try:
         if v is None or str(v).strip() in ("","--","nan","None","-"):return None
@@ -38,7 +39,8 @@ def blank(code,name="未同步",prior=None):
     s={"code":code,"name":name,"price":None,"pe":None,"pb":None,
        "score":None,"qualityScore":None,"valuationScore":None,"growthScore":None,"riskScore":None,
        "roe":None,"growth":None,"cfoRatio":None,"debtRatio":None,
-       "reportDate":None,"pubDate":None,"date":None,"pbPct":None,"flag":None}
+       "reportDate":None,"pubDate":None,"date":None,"pbPct":None,"flag":None,
+       "financeModelVersion":None,"modelVersion":None,"eligible":False,"action":None,"reasons":[]}
     if prior:
         s.update(prior)
     return s
@@ -83,7 +85,7 @@ def get_latest_bs(bs,code):
     df=baodata(bs,code,"date,close,peTTM,pbMRQ,isST",start,TODAY.isoformat())
     if df.empty:return None
     r=df.iloc[-1];p=val(r.get("close"))
-    return {"price":p,"pe":val(r.get("peTTM")),"pb":val(r.get("pbMRQ")),"date":str(r.get("date")),"isST":str(r.get("isST"))=="1"} if p else None
+    return {"price":p,"pe":val(r.get("peTTM")),"pb":val(r.get("pbMRQ")),"peBasis":"TTM市盈率","date":str(r.get("date")),"isST":str(r.get("isST"))=="1"} if p else None
 def rows(bs,method,code,year,quarter):
     rs=getattr(bs,method)(code=baocode(code),year=year,quarter=quarter)
     if rs.error_code!="0":return None
@@ -124,7 +126,14 @@ def finance(bs,stock,code,old):
         else:
             print("Ambiguous liabilityToAsset units",code,raw_debt,"multiplier",equity_multiplier,flush=True)
             debt=None
+    roes=[roe]
+    for year in (TODAY.year-2,TODAY.year-3):
+        y=rows(bs,"query_profit_data",code,year,4)
+        if y:
+            prev=scale(val(y.get("roeAvg")))
+            if prev is not None:roes.append(prev)
     stock.update(roe=roe,growth=growth,cfoRatio=cfo,debtRatio=debt,
+                 roeHistory=roes,financeModelVersion=MODEL_VERSION,
                  reportDate=str(latest_report.get("statDate") or ""),pubDate=str(latest_report.get("pubDate") or ""),
                  financeUpdated=str(TODAY))
 def get_pb(bs,code,stock):
@@ -148,38 +157,24 @@ def get_pb(bs,code,stock):
     # Use 1 historical point a month; source unadjusted price and contemporaneous BPS.
     df["month"]=pd.to_datetime(df.date).dt.to_period("M")
     monthly=df.drop_duplicates("month",keep="last")
-    points=[{"date":str(r["date"]), "price":round(float(r.price),3),"bps":round(float(r.bps),3)} for _,r in monthly.iterrows()]
+    points=[]
+    for _,r in monthly.iterrows():
+        historical=df.loc[df["date"]<=r["date"],"pb"]
+        item={"date":str(r["date"]),"price":round(float(r.price),3),
+              "bps":round(float(r.bps),3)}
+        if len(historical)>=60:
+            for key,pctl in (("b10",.10),("b25",.25),("b50",.50),("b75",.75),("b90",.90)):
+                item[key]=round(float(historical.quantile(pctl))*float(r.bps),3)
+        points.append(item)
     pct=float((df.pb<=pb).mean()*100)
     return {**{k:round(v,4) for k,v in q.items()},
             "start":str(df.iloc[0]["date"]),"end":str(last["date"]),
             "samples":int(len(df)),"currentBps":round(bps,4),"pbPct":round(pct,1),
-            "points":points}
-def rate(stock,h):
-    # Refuse to score if quality or valuation has missing data; ignore banks until sector model.
-    stock["score"]=None
-    stock["qualityScore"]=None
-    stock["valuationScore"]=None
-    stock["growthScore"]=None
-    stock["riskScore"]=None
-    stock["flag"]=None
-    name=stock.get("name","")
-    if "ST" in name.upper() or stock.get("isST"):
-        stock["flag"]="ST或风险警示股";return
-    if any(w in name for w in FINANCIAL_WORDS) or stock["code"][:3] in ("601",) and any(w in name for w in ("财险",)):
-        stock["flag"]="金融企业需独立估值模型";return
-    pe,pb=val(stock.get("pe")),val(stock.get("pb"))
-    roe,growth,cfo,debt=(val(stock.get(k)) for k in ("roe","growth","cfoRatio","debtRatio"))
-    if not h or None in (pe,pb,roe,growth,cfo,debt):return
-    if pe<=0 or pb<=0 or roe<=0 or cfo<=0 or debt<0:return
-    v=clamp(.6*(100-float(h["pbPct"]))+.4*clamp(100*(35-pe)/35))
-    q=clamp(.68*clamp(roe*5)+.32*clamp(cfo*65))
-    g=clamp((growth+30)*1.25)
-    r=clamp(100-max(0,debt-45)*1.6)
-    score=.35*v+.35*q+.20*g+.10*r
-    stock.update(score=round(score),qualityScore=round(q),valuationScore=round(v),growthScore=round(g),riskScore=round(r))
-    if roe<6 or growth< -30 or cfo<.65 or debt>78:
-        stock["flag"]="ROE/增长/现金流/负债存在低质量风险"
-    if stock["score"]<60:return
+            "bandMethod":"rolling-history","points":points}
+def rate(stock,h,q):
+    stock.update(evaluate(stock,h,q))
+    if h and stock.get("eligible"):stock["pbPct"]=h["pbPct"]
+
 def compute():
     import baostock as bs
     old=read_old()
@@ -231,9 +226,22 @@ def compute():
             master={c:v for c,v in (old.get("universe") or {}).items()
                     if re.fullmatch(r"(00|30|60|68)\d{4}",c)}
             print("Using previously verified security master",len(master),flush=True)
+        industries={}
+        try:
+            ir=bs.query_stock_industry()
+            if ir.error_code=="0":
+                fields=list(ir.fields)
+                while ir.error_code=="0" and ir.next():
+                    row=dict(zip(fields,ir.get_row_data()))
+                    c=str(row.get("code",""))
+                    if c.startswith(("sh.","sz.")):
+                        industries[c[3:]]=str(row.get("industry") or "")
+        except Exception as e:
+            print("Industry data unavailable",str(e)[:150],flush=True)
         for code,stock in cache.items():
             if stock.get("name") in ("未同步","",None) and code in master:
                 stock["name"]=master[code]
+            if industries.get(code):stock["industry"]=industries[code]
         for code,data in spot.items():
             stock=cache.get(code,blank(code,data["name"]))
             stock.update(data)
@@ -247,23 +255,29 @@ def compute():
         manual=sorted(c for c in manual if re.fullmatch(r"(00|30|60|68)\d{4}",c))
         earliest=(TODAY-timedelta(days=20)).isoformat()
         candidates=[c for c,q in rough.items()
-                    if c in master and q.get("stage")=="待财报复核"
+                    if c in master and quick_pass(q)
+                    and not financial(c,master[c],industries.get(c,""))
                     and q.get("date","")>=earliest]
         # If first-stage data is not yet populated, maintain existing verified
         # holdings and scores, but do not claim new broad-market discoveries.
         attempted={c:d for c,d in (old.get("scanAttempts") or {}).items()
                    if isinstance(d,str) and d<=str(TODAY)
                    and (TODAY-date.fromisoformat(d)).days<=12}
-        candidates.sort(key=lambda c:hashlib.sha256(("deep-v4-"+c).encode()).hexdigest())
         unseen=[c for c in candidates if c not in attempted
                 and (c not in cache or c not in hist)]
+        unseen.sort(key=lambda c:(-quick_rank(rough[c]),c))
+        explore=sorted(unseen,key=rotation_key)
         refresh=[c for c in candidates if c in cache and
                  (c not in hist or
                   not cache[c].get("financeUpdated") or
                   (TODAY-date.fromisoformat(str(cache[c].get("financeUpdated") or "1970-01-01"))).days>=35)]
         refresh.sort(key=lambda c:cache[c].get("financeUpdated") or "1970-01-01")
         limit=MAX_FINANCIAL
-        todo=list(dict.fromkeys(manual+unseen[:max(0,limit-len(manual))]+refresh))
+        slots=max(0,limit-len(manual))
+        explore_slots=max(1,slots//4) if slots else 0
+        selected=unseen[:max(0,slots-explore_slots)]
+        selected+= [c for c in explore if c not in selected][:explore_slots]
+        todo=list(dict.fromkeys(manual+selected+refresh))
         todo=todo[:limit]
         if len(todo)<limit:
             maintain=[c for c in cache if c not in todo and c in hist]
@@ -287,6 +301,7 @@ def compute():
             if not spot_success or s.get("price") is None:
                 quote=get_latest_bs(bs,code)
                 if quote:s.update(quote)
+            if industries.get(code):s["industry"]=industries[code]
             if s.get("price") is None:
                 continue
             need_fin=(not s.get("financeUpdated") or (TODAY-date.fromisoformat(s["financeUpdated"])).days>20 or (val(s.get("debtRatio")) is not None and val(s.get("debtRatio"))<1))
@@ -296,7 +311,8 @@ def compute():
             # Download long PB history only after published fundamental checks.
             roe,growth,cfo,debt=(val(s.get(k)) for k in ("roe","growth","cfoRatio","debtRatio"))
             quality_gate=(None not in (roe,growth,cfo,debt) and
-                          roe>=7 and growth>=-25 and cfo>=.65 and debt<=75)
+                          roe>=8 and growth>=-25 and cfo>=.8 and debt<=75
+                          and len(s.get("roeHistory") or [])>=2)
             need_pb=(code in manual or quality_gate) and (
                 code not in hist or (TODAY-date.fromisoformat(hist[code]["end"])).days>15)
             if need_pb:
@@ -312,31 +328,33 @@ def compute():
                 if val(s.get("pb")) is not None and h.get("currentBps") and (s.get("price") or 0)>0:
                     # Recalculate current PB percentile only when pb itself is recent (not old data).
                     s["pbPct"]=h["pbPct"] if h["end"]==s.get("date") else s.get("pbPct")
-            rate(s,hist.get(code))
+            q=rough.get(code)
+            rate(s,hist.get(code),q if q and q.get("date","")>=earliest else {"stage":"过期"})
         # ensure old stale quotes aren't treated as live data
         for s in cache.values():
             dt=s.get("date")
             if dt:
                 try:
-                    if (TODAY-date.fromisoformat(str(dt))).days>15:s["score"]=None;s["flag"]="行情数据超过15天"
+                    if (TODAY-date.fromisoformat(str(dt))).days>15:
+                        s.update(score=None,eligible=False,flag="行情数据超过15天",action="过期数据 · 暂停判断")
                 except ValueError:s["score"]=None
         stocks=sorted(cache.values(),key=lambda s:s["code"])
-        validated=[s for s in stocks if s["score"] is not None and not s["flag"]]
+        validated=[s for s in stocks if s.get("eligible") and s["score"] is not None and not s["flag"]]
         validated.sort(key=lambda s:s["score"],reverse=True)
         effective_count=sum(1 for s in stocks if val(s.get("price")) and val(s.get("pb")))
         data={"mode":"live" if validated else "partial",
               "generatedAt":datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds"),
               "marketDate":max((s.get("date") for s in stocks if s.get("date")),default=None),
               "coverage":{"market":len(master) if master else None,
-                          "scanned":effective_count,"qualityVerified":len(validated),"ranking":min(10,len(validated)),
+                          "scanned":effective_count,"qualityVerified":len(validated),"ranking":min(20,len(validated)),
                           "fullQuoteSnapshot":spot_success,"batchSize":len(todo),
                           "pipeline":"粗筛 → 财务复核 → PB历史估值",
                           "coarseScanned":(quick.get("coverage") or {}).get("everQuoted",0),
                           "coarseQualified":len(candidates)},
               "universe":master,"scanAttempts":attempted,
-              "stocks":stocks,"top":[s["code"] for s in validated[:10]],
+              "stocks":stocks,"top":[s["code"] for s in validated[:20]],
               "history":hist,
-              "method":"两阶段筛选：全市场最新PE/PB初筛；深度候选财务质量复核通过后下载PB历史；综合分=估值35%+质量35%+增长20%+风险10%。仅已核验样本排名，非全市场排名。","sources":["AkShare Eastmoney A-share spot","BaoStock financial statements","BaoStock historical daily peTTM/pbMRQ"]}
+              "method":"低估值优质股V2：PE≤35、PB≤4.5、PB历史分位≤35%、ROE≥8%、经营现金流/净利≥0.8、利润同比≥-25%、负债率≤75%、至少两年ROE；权重估值35%+质量35%+成长15%+风险15%；金融企业待独立建模。仅已核验样本排名。","sources":["AkShare Eastmoney A-share spot","BaoStock financial statements","BaoStock historical daily peTTM/pbMRQ"]}
         FILE.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf8")
         print("VALIDATED",len(validated),"quotes",effective_count,"universe",len(master),"top",data["top"],flush=True)
         return data
