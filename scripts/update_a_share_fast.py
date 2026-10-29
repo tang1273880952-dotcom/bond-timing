@@ -205,3 +205,4 @@ if __name__=="__main__":
         traceback.print_exc()
         status.update(success=False,error=str(exc))
     STATUS.write_text(json.dumps(status,ensure_ascii=False,indent=2),encoding="utf8")
+    if not status.get("success"):raise SystemExit(1)

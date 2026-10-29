@@ -176,7 +176,7 @@ def get_pb(bs,code,stock):
             "samples":int(len(df)),"currentBps":round(bps,4),"pbPct":round(pct,1),
             "bandMethod":"rolling-history","points":points}
 def rate(stock,h,q):
-    stock.update(evaluate(stock,h,q))
+    stock.update(evaluate(stock,h,q,today=TODAY))
     if h and stock.get("eligible"):stock["pbPct"]=h["pbPct"]
 
 def compute():
@@ -286,7 +286,6 @@ def compute():
         selected+= [c for c in explore if c not in selected][:explore_slots]
         todo=list(dict.fromkeys(manual+refresh[:refresh_slots]+selected))
         todo=todo[:limit]
-        todo=todo[:limit]
         if len(todo)<limit:
             maintain=[c for c in cache if c not in todo and c in hist]
             maintain.sort(key=lambda c:cache[c].get("financeUpdated") or "1970-01-01")
@@ -323,7 +322,8 @@ def compute():
                           and len(s.get("roeHistory") or [])>=2)
             need_pb=(code in manual or quality_gate) and (
                 code not in hist or hist[code].get("bandMethod")!="rolling-history"
-                or (TODAY-date.fromisoformat(hist[code]["end"])).days>15)
+                or hist[code].get("end")!=s.get("date")
+                or (TODAY-date.fromisoformat(hist[code]["end"])).days>7)
             if need_pb:
                 try:
                     h=get_pb(bs,code,s)
@@ -378,4 +378,5 @@ def main():
         status.update(success=False,error=str(e))
         print("Retaining prior market snapshot instead of fabricating scores",flush=True)
     STATUS.write_text(json.dumps(status,ensure_ascii=False,indent=2),encoding="utf8")
+    if not status.get("success"):raise SystemExit(1)
 if __name__=="__main__":main()

@@ -1,5 +1,7 @@
 """A-share value/quality screening v2: conservative, non-financial companies only."""
 import hashlib
+import math
+from datetime import date
 MODEL_VERSION=2
 PE_LIMIT=35
 PB_LIMIT=4.5
@@ -26,7 +28,7 @@ def quick_rank(q):
         return -1
 def rotation_key(code):
     return hashlib.sha256(("ashare-rotate-v2:"+str(code)).encode()).hexdigest()
-def evaluate(s,h,q):
+def evaluate(s,h,q,today=None):
     r=dict(modelVersion=MODEL_VERSION,eligible=False,score=None,
            qualityScore=None,valuationScore=None,growthScore=None,riskScore=None,
            flag=None,action="数据不足 · 待核验",reasons=[])
@@ -39,6 +41,24 @@ def evaluate(s,h,q):
         return reject("金融行业需独立估值模型")
     if not quick_pass(q):
         return reject("最新快速初筛不通过或缺少新鲜行情")
+    if today is not None:
+        try:
+            current=today if isinstance(today,date) else date.fromisoformat(str(today))
+            qday=date.fromisoformat(str(q["date"]))
+            stock_day=date.fromisoformat(str(s["date"]))
+            band_day=date.fromisoformat(str(h["end"]))
+            finance_day=date.fromisoformat(str(s["financeUpdated"]))
+            report_day=date.fromisoformat(str(s["reportDate"]))
+        except (ValueError,KeyError,TypeError,AttributeError):
+            return reject("关键行情、财报或PB历史日期缺失")
+        if qday>current or stock_day>current or band_day>current:
+            return reject("行情或PB历史日期异常")
+        if (current-qday).days>7 or (current-stock_day).days>7:
+            return reject("行情数据已超过7天，暂停评分")
+        if band_day!=stock_day:
+            return reject("PB历史与股票行情日期不一致，需重新计算估值")
+        if (current-finance_day).days>35 or (current-report_day).days>240:
+            return reject("财报复核或最新报告期已过期")
     if s.get("financeModelVersion")!=MODEL_VERSION:
         return reject("等待新版多年财报核验")
     if not h or h.get("samples",0)<120:
@@ -49,6 +69,8 @@ def evaluate(s,h,q):
         roes=[float(v) for v in s.get("roeHistory",[]) if v is not None]
     except (KeyError,ValueError,TypeError):
         return reject("缺少关键估值或财务指标")
+    if any(not math.isfinite(x) for x in (pe,pb,roe,growth,cfo,debt,pct,*roes)):
+        return reject("估值或财务数据存在非有限数字")
     if len(roes)<2:return reject("至少需要2个已披露年度ROE")
     if not 0<pe<=35 or not 0<pb<=4.5:
         return reject("PE或PB超过低估值策略上限")

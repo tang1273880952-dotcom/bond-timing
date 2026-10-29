@@ -23,6 +23,18 @@ class TestValueModel(unittest.TestCase):
     def test_old_model(self):
         s=stock();s.pop("financeModelVersion")
         self.assertFalse(evaluate(s,hist(),quote())["eligible"])
+    def test_invalid_numeric_and_freshness(self):
+        x=stock();x["pb"]=float("nan")
+        self.assertFalse(evaluate(x,hist(),quote())["eligible"])
+        x=stock();x["roeHistory"]=[10,float("inf")]
+        self.assertFalse(evaluate(x,hist(),quote())["eligible"])
+        dated={**stock(),"date":"2026-10-28","financeUpdated":"2026-10-29","reportDate":"2026-09-30"}
+        q={**quote(),"date":"2026-10-29"}
+        h={**hist(),"end":"2026-10-28"}
+        self.assertTrue(evaluate(dated,h,q,today="2026-10-29")["eligible"])
+        self.assertFalse(evaluate(dated,{**h,"end":"2026-10-27"},q,today="2026-10-29")["eligible"])
+        self.assertFalse(evaluate({**dated,"date":"2026-10-10"},{**h,"end":"2026-10-10"},q,today="2026-10-29")["eligible"])
+        self.assertFalse(evaluate(dated,h,{**q,"date":"2026-10-19"},today="2026-10-29")["eligible"])
     def test_priority(self):
         self.assertGreater(quick_rank({"pe":10,"pb":1}),quick_rank({"pe":40,"pb":5}))
 if __name__=="__main__":unittest.main()
