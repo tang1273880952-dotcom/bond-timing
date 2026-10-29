@@ -1,5 +1,5 @@
 {
-  "attemptAt": "2026-10-29T19:21:37.560067+08:00",
-  "success": false,
-  "error": "incompatible merge keys [0] dtype('<M8[s]') and dtype('<M8[us]'), must be the same type"
+  "attemptAt": "2026-10-29T19:23:44.876615+08:00",
+  "success": true,
+  "dataDate": "2026-10-29"
 }
