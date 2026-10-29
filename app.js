@@ -28,42 +28,50 @@ function advice(a, held) {
   return {title:'评估是否逐步减仓',detail:'估值偏贵不等于顶部。先核对盈利预期、持仓比例及趋势，再评估是否兑现部分收益。',tone:'warning'};
 }
 function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function scoreTone(n){
+  return n>=70?'cheap':n>=55?'watch':n>=40?'neutral':n>=25?'caution':'rich';
+}
+function scoreText(n){
+  return n>=85?'明显偏低估':n>=70?'相对低估':n>=55?'略偏低估':
+    n>=40?'中性':n>=25?'偏高估':'相对高估';
+}
 function render() {
-  const d=latest, st=syncStatus;
+  const d=latest,st=syncStatus;
   if(!d||d.mode!=='live'||!Array.isArray(d.assets)||d.assets.length!==3){
-    $('stamp').textContent='尚无有效市场数据 · 等待首次云端同步';
+    $('stamp').textContent='数据暂不可用';
+    $('pick').textContent='等待行情';
+    $('reason').textContent='暂不显示未经核验的估值';
     $('cards').innerHTML='';
-    $('pick').textContent='等待可靠行情';
-    $('reason').textContent='暂无经核验的完整资产数据，不计算跨资产优先级。';
-    $('allocTitle').textContent='等待有效数据';
-    $('allocation').textContent='';
-    $('details').innerHTML='';
     return;
   }
-  // These stocks and Treasury-yield proxies use DIFFERENT scoring formulas.
-  // Never compare them with a single rank or imply that their scores are calibrated.
-  const assets=d.assets;
-  $('stamp').textContent='市场日期 '+d.dataDate+' · '+(st&&st.success===false?'最近同步失败，使用上次有效数据':'云端估值已更新');
-  $('pick').textContent='各资产独立估值观察';
-  $('reason').textContent='中证500按PE/PB与ERP评分，国债使用收益率及利差代理评分。三类得分未做跨资产校准，不能直接排名决定买哪个ETF。';
+  const byId=Object.fromEntries(d.assets.map(a=>[a.id,a]));
+  const assets=['csi500','bond10','bond30'].map(id=>byId[id]).filter(Boolean);
+  $('stamp').textContent='数据 '+safe(d.dataDate)+(st?.success===false?' · 最近更新失败，沿用旧数据':'');
+  $('pick').textContent='分别观察，不机械排名';
+  $('reason').textContent='绿色代表本资产历史相对便宜；股票与国债评分不直接比较。';
   $('cards').innerHTML=assets.map(a=>{
-    const held=Boolean(selected[a.id]);const tip=advice(a,held);
-    const open=Boolean(expanded[a.id]);
-    const metrics=(a.metrics||[]).map(m=>'<div class="card-metric"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('');
-    return '<article class="card decision-card" data-card="'+a.id+'" tabindex="0" aria-label="'+safe(a.name)+'：点击展开或收起判断依据">'+
-    '<div class="asset-top"><h3>'+safe(a.name)+'</h3><span class="subrank">单独评估</span></div>'+
-    '<div class="score">'+a.score+'<small>/100 · 买入估值分</small></div>'+
-    '<div class="tag">'+grade(a.score)+'</div>'+
-    '<div class="ownership" role="group" aria-label="'+safe(a.name)+'持仓状态"><button type="button" data-asset="'+a.id+'" data-held="false" class="'+(!held?'active':'')+'" aria-pressed="'+(!held)+'">未持有</button><button type="button" data-asset="'+a.id+'" data-held="true" class="'+(held?'active':'')+'" aria-pressed="'+held+'">已持有</button></div>'+
-    '<div class="action '+tip.tone+'"><strong>'+tip.title+'</strong><p>'+tip.detail+'</p></div>'+
-    '<button type="button" class="expand-trigger" data-expand="'+a.id+'" aria-expanded="'+open+'">'+(open?'收起判断依据 ▲':'点击查看判断依据 ▼')+'</button>'+
-    (open?'<div class="card-metrics"><div class="mini-heading">指标明细 · '+safe(d.dataDate)+'</div>'+metrics+'<p>仅基于估值与收益率，不含你的真实持仓成本、ETF溢折价或经过回测的卖点。</p></div>':'')+
-    '</article>';}).join('');
-  const eligible=assets.filter(a=>a.score>=55);
-  $('allocTitle').textContent=eligible.length===0?'当前暂无明显独立估值优势':('达到各自观察条件：'+eligible.map(a=>a.name).join('、'));
-  $('bar').innerHTML='';
-  $('allocation').textContent=eligible.length===0?'暂缓新增，不等于需要卖出已有持仓。':'这里仅列出达到各自参考阈值的资产，不代表按分数排序，更不代表新资金的推荐比例。';
-  $('details').innerHTML=assets.map(a=>'<h4>'+safe(a.name)+'</h4>'+(a.metrics||[]).map(m=>'<div class="item"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('')).join('');
+    const tone=scoreTone(a.score),open=Boolean(expanded[a.id]),held=Boolean(selected[a.id]);
+    const first=(a.metrics||[])[0];
+    const tip=advice(a,held);
+    return '<article class="card decision-card compact-asset tone-'+tone+'" data-card="'+safe(a.id)+
+      '" tabindex="0" aria-label="'+safe(a.name)+'，查看估值指标">'+
+      '<div class="asset-top"><h3>'+safe(a.name)+'</h3></div>'+
+      '<div class="score-line"><strong class="score-value">'+safe(a.score)+'</strong><span class="score-unit">/100 · 估值分</span></div>'+
+      '<div class="valuation-status">'+scoreText(a.score)+'</div>'+
+      (first?'<div class="asset-main-metric"><span>'+safe(first[0])+'</span><b>'+safe(first[1])+'</b></div>':'')+
+      (a.id==='csi500'?'<p class="asset-footnote">PE / PB / ERP</p>':
+        '<p class="asset-footnote">国债收益率代理 · 非ETF价格</p>')+
+      '<button type="button" class="expand-trigger" data-expand="'+safe(a.id)+
+        '" aria-expanded="'+open+'">'+(open?'收起详情 −':'查看指标 +')+'</button>'+
+      (open?'<div class="card-metrics">'+(a.metrics||[]).map(m=>
+        '<div class="card-metric"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('')+
+        '<div class="ownership" role="group" aria-label="持仓状态"><button type="button" data-asset="'+safe(a.id)+
+        '" data-held="false" class="'+(!held?'active':'')+'" aria-pressed="'+!held+'">未持有</button>'+
+        '<button type="button" data-asset="'+safe(a.id)+'" data-held="true" class="'+(held?'active':'')+
+        '" aria-pressed="'+held+'">已持有</button></div>'+
+        '<p class="compact-advice">'+safe(tip.title)+' · '+safe(tip.detail)+'</p></div>':'')+
+      '</article>';
+  }).join('');
 }
 $('cards').addEventListener('click',event=>{
   const btn=event.target.closest('button[data-asset]');
@@ -124,25 +132,36 @@ function renderUS(){
   const section=$('us-card'),meta=$('us-stamp');
   if(!section||!meta)return;
   const d=usLatest,status=usStatus;
+  const panel=$('us-section');
   if(!d||d.mode!=='live'||d.id!=='sp500'||!Number.isFinite(d.score)){
-    meta.textContent=(status&&status.success===false)?'美股数据尚未通过验证 · 上次错误已记录':'等待首次美股数据验证';
-    section.innerHTML='<div class="us-empty">尚无核实的标普500股债比数据，暂不显示推测评分。'+(status&&status.success===false?' 云端数据源仍在检查。':'')+'</div>';
+    panel.className='panel us-panel overview-card tone-neutral';
+    meta.textContent='等待有效数据';
+    section.innerHTML='<p class="us-empty">美股估值暂不可用</p>';
     return;
   }
-  const held=Boolean(selected.sp500);
+  const tone=scoreTone(d.score),held=Boolean(selected.sp500),open=Boolean(expanded.sp500);
+  panel.className='panel us-panel overview-card tone-'+tone;
+  const metrics=(d.metrics||[]).map(m=>
+    '<div class="card-metric"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('');
+  const erp=(d.metrics||[]).find(m=>String(m[0]).includes('风险溢价（盈利收益率')) || (d.metrics||[])[2];
+  meta.textContent='数据 '+safe(d.valuationDate)+(d.estimatedPE?' · PE估算':'')+
+    (status?.success===false?' · 更新失败，沿用旧数据':'');
   const tip=usDecision(d,held);
-  const open=Boolean(expanded.sp500);
-  const trend=d.trend==='above_10m'?'月度指数高于近10个月均价':d.trend==='below_10m'?'月度指数低于近10个月均价':'月度价格趋势尚无可验证数据';
-  meta.textContent='PE观测 '+d.valuationDate+' · 美债收益率 '+d.yieldDate+(status&&status.success===false?' · 最近更新失败，显示上次有效值':'');
-  const metrics=(d.metrics||[]).map(m=>'<div class="card-metric"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('');
-  section.innerHTML='<div class="us-card-main"><div><div class="us-score">'+d.score+'<small>/100 · 买入估值分</small></div><div class="us-result">'+grade(d.score)+'</div></div></div>'+
-    '<div class="us-trend">'+safe(trend)+(d.priceDate?' · '+safe(d.priceDate):'')+'</div>'+
-    '<div class="ownership" role="group" aria-label="标普500持仓状态"><button type="button" data-us-held="false" class="'+(!held?'active':'')+'" aria-pressed="'+(!held)+'">未持有</button><button type="button" data-us-held="true" class="'+(held?'active':'')+'" aria-pressed="'+held+'">已持有</button></div>'+
-    '<div class="us-tip '+tip.tone+'"><strong>'+safe(tip.title)+'</strong><p>'+safe(tip.detail)+'</p></div>'+
-    '<button type="button" data-us-expand="yes" class="expand-trigger" aria-expanded="'+open+'">'+(open?'收起美股数据 ▲':'展开美股股债比数据 ▼')+'</button>'+
-    (open?'<div class="card-metrics">'+metrics+'</div>':'')+
-    '<div class="us-observation">标普500PE为月度TTM口径，最新可能为估算；美债收益率目前也采用月度观测，不是当日10Y报价。风险溢价=100/PE−美债10Y。买入估值分不是卖出概率，策略未经回测。</div>'+
-    '<div class="us-sources"><a href="https://www.multpl.com/s-p-500-pe-ratio/table/by-month" target="_blank" rel="noopener">PE来源</a><a href="https://www.multpl.com/10-year-treasury-rate/table/by-month" target="_blank" rel="noopener">美债月度来源</a><a href="https://www.multpl.com/s-p-500-historical-prices/table/by-month" target="_blank" rel="noopener">标普月度价格来源</a></div>';
+  section.innerHTML=
+    '<div class="score-line"><strong class="score-value">'+safe(d.score)+
+    '</strong><span class="score-unit">/100 · 估值分</span></div>'+
+    '<div class="valuation-status">'+scoreText(d.score)+'</div>'+
+    (erp?'<div class="asset-main-metric"><span>股债风险溢价</span><b>'+safe(erp[1])+'</b></div>':'')+
+    '<p class="asset-footnote">美国10年国债 · 月度PE'+(d.estimatedPE?'估算':'')+'</p>'+
+    '<button type="button" class="expand-trigger" data-us-expand="yes" aria-expanded="'+open+'">'+
+    (open?'收起详情 −':'查看指标 +')+'</button>'+
+    (open?'<div class="card-metrics">'+metrics+
+      '<div class="ownership" role="group" aria-label="标普500持仓状态">'+
+      '<button type="button" data-us-held="false" class="'+(!held?'active':'')+
+      '" aria-pressed="'+!held+'">未持有</button><button type="button" data-us-held="true" class="'+
+      (held?'active':'')+'" aria-pressed="'+held+'">已持有</button></div>'+
+      '<p class="compact-advice">'+safe(tip.title)+' · '+safe(tip.detail)+'</p>'+
+      '<p class="compact-advice">美股PE可能为估算，未结合ETF实际交易价格。</p></div>':'');
 }
 const usSection=$('us-card');
 if(usSection)usSection.addEventListener('click',event=>{
