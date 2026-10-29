@@ -1,0 +1,15 @@
+{
+  "generatedAt": null,
+  "marketDate": null,
+  "coverage": {
+    "market": 0,
+    "scanned": 0,
+    "qualityVerified": 0,
+    "ranking": 0
+  },
+  "mode": "pending",
+  "stocks": [],
+  "top": [],
+  "history": {},
+  "method": "全市场估值初筛与候选财务复核；缺失指标不打综合分。"
+}
