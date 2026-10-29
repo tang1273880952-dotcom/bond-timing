@@ -1,11 +1,11 @@
 {
-  "attemptAt": "2026-10-29T11:09:58+08:00",
+  "attemptAt": "2026-10-29T11:32:44+08:00",
   "success": true,
   "coverage": {
     "universe": 5223,
-    "everQuoted": 314,
-    "recentQuoted": 314,
-    "preselected": 156,
+    "everQuoted": 5223,
+    "recentQuoted": 5223,
+    "preselected": 2116,
     "fullSnapshot": false,
     "source": "BaoStock分批估值",
     "batchLimit": 240
