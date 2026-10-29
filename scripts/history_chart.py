@@ -79,7 +79,7 @@ def _window_asof(src, anchor, years, frequency):
     if count < minimum or window.empty:
         return None
     # Refuse to mislabel incomplete lookbacks, even if the count looks high.
-    tolerance_days = 45 if frequency == "monthly" else 24
+    tolerance_days = 31 if frequency == "monthly" else 24
     if window.date.iloc[0] > cutoff + pd.Timedelta(days=tolerance_days):
         return None
     values = window.erp
