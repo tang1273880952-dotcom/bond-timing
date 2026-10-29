@@ -34,7 +34,7 @@ jobs:
           git add data/us_status.json
           if [ -f data/us_latest.json ]; then git add data/us_latest.json; fi
           if ! git diff --cached --quiet; then
-            git commit -m "chore: refresh S&P 500 ERP [skip ci]"
+            git commit -m "chore: refresh S&P 500 ERP"
             git pull --rebase origin main
             git push origin HEAD:main
           fi
