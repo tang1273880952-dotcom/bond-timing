@@ -72,8 +72,15 @@ def snapshot_all():
     return records
 def baodata(bs,code,fields,start,end):
     rs=bs.query_history_k_data_plus(baocode(code),fields,start_date=start,end_date=end,frequency="d",adjustflag="3")
-    if rs.error_code!="0":return pd.DataFrame()
-    return rs.get_data()
+    if rs.error_code!="0":
+        print("History query failed",code,rs.error_code,str(rs.error_msg)[:140],flush=True)
+        return pd.DataFrame()
+    # BaoStock 0.9.x get_data() calls pandas.DataFrame.append, removed in
+    # pandas >=2. Gather rows using the official iteration API instead.
+    records=[]
+    while rs.error_code=="0" and rs.next():
+        records.append(rs.get_row_data())
+    return pd.DataFrame(records,columns=rs.fields)
 def get_latest_bs(bs,code):
     start=(TODAY-timedelta(days=16)).isoformat()
     df=baodata(bs,code,"date,close,peTTM,pbMRQ,isST",start,TODAY.isoformat())
@@ -106,7 +113,14 @@ def finance(bs,stock,code,old):
     if not pub or (TODAY-date.fromisoformat(pub)).days>600:
         return
     roe=scale(val(annual.get("roeAvg")));growth=scale(val(latest_growth.get("YOYNI")))
-    cfo=val(cash.get("CFOToNP"));debt=scale(val(balance.get("liabilityToAsset")))
+    cfo=val(cash.get("CFOToNP"))
+    raw_debt=val(balance.get("liabilityToAsset"))
+    debt=scale(raw_debt)
+    # Source values unexpectedly below 1% can be due to percentage points
+    # being represented in 1/100 units. Do not silently score an ambiguous ratio.
+    if debt is not None and debt<1:
+        print("Ambiguous liabilityToAsset units",code,raw_debt, "scaled",debt,flush=True)
+        debt=None
     stock.update(roe=roe,growth=growth,cfoRatio=cfo,debtRatio=debt,
                  reportDate=str(latest_report.get("statDate") or ""),pubDate=str(latest_report.get("pubDate") or ""),
                  financeUpdated=str(TODAY))
