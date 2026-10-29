@@ -8,7 +8,7 @@ on:
       - 'scripts/merge_a_share_quick.py'
       - '.github/workflows/ashare-fast.yml'
   schedule:
-    - cron: '10 14,15 * * 1-5'
+    - cron: '0 11 * * 1-5' # Asia/Shanghai 19:00, weekdays
 permissions:
   contents: write
   pages: write
