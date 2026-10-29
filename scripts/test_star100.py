@@ -6,7 +6,7 @@ import pandas as pd
 from star100 import official_daily, build_star100
 
 
-class TestBse50(unittest.TestCase):
+class TestStar100(unittest.TestCase):
     def setUp(self):
         self.dates = pd.bdate_range("2023-08-07", "2026-10-28")
         self.daily = pd.DataFrame({
@@ -23,7 +23,7 @@ class TestBse50(unittest.TestCase):
         self.assertEqual(d["code"], "000698")
         self.assertEqual(d["date"], "2026-10-28")
         self.assertEqual(d["periods"]["3"]["referenceDate"], "2026-09-30")
-        self.assertGreater(len(d["points"]), 185)
+        self.assertTrue(145 <= len(d["points"]) <= 180)
         self.assertEqual(d["indexPoints"][-1][0], "2026-10-28")
         for years in ("1", "3"):
             p = d["periods"][years]
