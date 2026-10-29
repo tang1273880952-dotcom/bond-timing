@@ -6,7 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import pandas as pd
 import akshare as ak
-from history_chart import build_history, official_csi500_erp
+from history_chart import build_history, official_csi500_erp, _clean
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data"
@@ -107,15 +107,39 @@ def calculate():
     stockscore=round(.5*e+.3*(100-p)+.2*(100-b))
     bond10score=round(.6*b10+.25*dev10+.15*s10)
     bond30score=round(.6*b30+.25*s30+.15*dev30)
-    # Real weekly ERP from CSI Index official daily rolling PE, if available.
-    # Keep existing score methodology unchanged; never interpolate monthly PE to weeks.
+    # Bootstrap true 20-year history once, then refresh only recent official PE
+    # daily. Rolling 10y historical bands in 2016 require data back to 2006.
+    cache_path=OUT/"csi500_erp_daily.csv"
     try:
-        daily_erp = official_csi500_erp(y, market_end)
-        history = build_history(daily_erp, frequency="weekly")
-        print("Official CSI500 weekly ERP", len(history["series"]["csi500"]["points"]),flush=True)
+        cached=None
+        if cache_path.exists():
+            cached=_clean(pd.read_csv(cache_path),"erp")
+            if len(cached)<2400 or cached.date.min()>market_end-pd.DateOffset(years=15):
+                cached=None
+        if cached is None:
+            history_start=market_end-pd.DateOffset(years=20)-pd.Timedelta(days=16)
+            older_end=y.date.min()-pd.Timedelta(days=1)
+            if older_end>=history_start:
+                old_y=china_yields(history_start.date(),older_end.date())
+                all_y=pd.concat([old_y,y],ignore_index=True)
+            else:
+                all_y=y
+            raw_erp=official_csi500_erp(all_y,market_end,years=20)
+            print("Official CSI500 historical bootstrap",len(raw_erp),flush=True)
+        else:
+            back_years=max(0.35,min(9.5,(market_end-cached.date.max()).days/365.25+0.18))
+            recent=official_csi500_erp(y,market_end,years=back_years)
+            raw_erp=_clean(pd.concat([cached,recent],ignore_index=True),"erp")
+            raw_erp=raw_erp[raw_erp.date>=market_end-pd.DateOffset(years=20)]
+            print("Official CSI500 cache refreshed",len(raw_erp),flush=True)
+        history=build_history(raw_erp,frequency="weekly")
+        # Commit cache only after all data validations have passed.
+        raw_erp[["date","erp"]].to_csv(cache_path,index=False,float_format="%.7f")
+        print("CSI500 rolling band counts",
+              {k:len(v["bands"]) for k,v in history["series"]["csi500"]["periods"].items()},flush=True)
     except Exception as exc:
-        print("Official daily ERP not available; honest monthly fallback:", repr(exc),flush=True)
-        history = build_history(stock_win, frequency="monthly")
+        print("Full rolling ERP not available; honest partial monthly fallback:",repr(exc),flush=True)
+        history=build_history(stock_win,frequency="monthly")
     result = {
         "mode":"live",
         "dataDate":str(market_end.date()),
