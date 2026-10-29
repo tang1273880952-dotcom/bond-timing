@@ -29,7 +29,7 @@ function holdingAdvice(s){
 function title(s,extra=""){
  let a=qualityWord(s);
  let text='<div class="stock-head"><div><div class="stock-title">'+safe(s.name)+' <span class="stock-code">'+safe(s.code)+'</span></div>'+
- (extra?'<div class="stock-code">'+safe(extra)+'</div>':'')+'</div><div class="score">'+(s.score===null||s.score===undefined?'—':fmt(s.score,0))+'<small>/100</small></div></div>';
+ (extra?'<div class="stock-code">'+safe(extra)+'</div>':'')+'</div><div class="score">'+(s.modelVersion!==VALUE_VERSION||!s.eligible||s.score===null||s.score===undefined?'—':fmt(s.score,0))+'<small>/100</small></div></div>';
  return text+'<div class="metrics"><div class="metric"><span>当前价格</span><strong>'+(num(s.price)!==null?fmt(s.price):'待同步')+'</strong></div><div class="metric"><span>市净率 PB</span><strong>'+fmt(s.pb)+'倍</strong></div><div class="metric"><span>历史PB分位</span><strong>'+(num(s.pbPct)!==null?fmt(s.pbPct,0)+'%':'待采集')+'</strong></div></div>'+
  '<div class="msg '+a.tone+'">'+safe(s.action&&s.eligible?s.action:a.label)+'</div>';
 }
@@ -160,7 +160,7 @@ function detailsHTML(code){
  ["低估参考（PB10%）",bps*Number(h.p10)],["偏低估值（PB25%）",bps*Number(h.p25)],["历史中位（PB50%）",bps*Number(h.p50)],["偏贵观察（PB75%）",bps*Number(h.p75)],["高估观察（PB90%）",bps*Number(h.p90)]
  ]:[];
  let html='<h2>'+safe(s.name)+' <small>'+safe(s.code)+'</small></h2><p class="minor">数据日期 '+safe(s.date||market.marketDate||"未同步")+' · '+safe(s.industry||"行业待确认")+'</p>'+
- '<div class="row"><span>综合评分</span><b>'+((num(s.score)===null)?"暂无已核验评分":fmt(s.score,0)+"/100")+'</b></div>'+
+ '<div class="row"><span>综合评分</span><b>'+((s.modelVersion!==VALUE_VERSION||!s.eligible||num(s.score)===null)?"新版低估值模型待核验":fmt(s.score,0)+"/100")+'</b></div>'+
  '<div class="row"><span>当前收盘价</span><b>¥'+fmt(s.price)+'</b></div>'+
  '<div class="row"><span>PE（'+safe(s.peBasis||((market.stocks||[]).some(x=>x.code===code)?"TTM市盈率（深度数据）":q?.peBasis)||"口径未核验")+'）/ PB</span><b>'+fmt(s.pe)+' / '+fmt(s.pb)+'</b></div>'+
  '<div class="row"><span>质量 / 估值 / 成长 / 风险</span><b>'+["qualityScore","valuationScore","growthScore","riskScore"].map(k=>fmt(s[k],0)).join(" / ")+'</b></div>'+
