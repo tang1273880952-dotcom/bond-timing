@@ -20,14 +20,14 @@ def clean(frame, key):
     return out.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
 
 
-def official_daily(end, api=None):
+def official_daily(end, api=None, start=None):
     """Fetch official 899050 from publication onward, in bounded chunks."""
     if api is None:
         import akshare as ak
         api = ak.stock_zh_index_hist_csindex
     end = pd.Timestamp(end).normalize()
     chunks = []
-    cursor = LISTING
+    cursor = max(LISTING, pd.Timestamp(start).normalize()) if start is not None else LISTING
     while cursor <= end:
         finish = min(cursor + pd.Timedelta(days=590), end)
         raw = api(symbol=CODE, start_date=cursor.strftime("%Y%m%d"),

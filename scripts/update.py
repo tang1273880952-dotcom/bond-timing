@@ -249,7 +249,11 @@ def calculate():
             bse_raw = fetch_bse50_daily(market_end)
         else:
             # Keep earlier authentic records, refresh the newest observations.
-            recent = fetch_bse50_daily(market_end)
+            recent_start=max(
+                pd.Timestamp("2022-11-21"),
+                cached_bse.date.max()-pd.Timedelta(days=35)
+            )
+            recent = fetch_bse50_daily(market_end,start=recent_start)
             bse_raw = pd.concat([cached_bse,recent],ignore_index=True)
             bse_raw = bse_raw.sort_values("date").drop_duplicates("date",keep="last")
         bse = build_bse50(bse_raw,y[["date","y10"]],market_end)
