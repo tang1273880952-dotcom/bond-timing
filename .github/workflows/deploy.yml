@@ -46,6 +46,10 @@ jobs:
         run: |
           node --check history.js
           node tests/test_history_render.cjs
+      - name: Check BSE50 chart syntax and regression
+        run: |
+          node --check bse50.js
+          node tests/test_bse50_render.cjs
       - name: Download data and calculate scores
         if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-history]')
         run: python scripts/update.py
