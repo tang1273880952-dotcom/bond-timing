@@ -318,7 +318,8 @@ def compute():
                           roe>=8 and growth>=-25 and cfo>=.8 and debt<=75
                           and len(s.get("roeHistory") or [])>=2)
             need_pb=(code in manual or quality_gate) and (
-                code not in hist or (TODAY-date.fromisoformat(hist[code]["end"])).days>15)
+                code not in hist or hist[code].get("bandMethod")!="rolling-history"
+                or (TODAY-date.fromisoformat(hist[code]["end"])).days>15)
             if need_pb:
                 try:
                     h=get_pb(bs,code,s)
