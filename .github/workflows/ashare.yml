@@ -36,7 +36,7 @@ jobs:
       - name: Update stock shortlist and PB Band
         env:
           ASHARE_MAX_FINANCIAL: '35'
-          ASHARE_MAX_FALLBACK: '65'
+          ASHARE_MAX_FALLBACK: ${{ github.event_name == 'push' && '12' || '65' }}
         run: python scripts/update_a_share.py
       - name: Publish new validated data
         run: |
