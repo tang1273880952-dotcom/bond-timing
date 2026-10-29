@@ -19,7 +19,8 @@ def dated(frame):
     for field in ("日期", "date", "trade_date"):
         if field in frame.columns:
             x = frame.copy()
-            x["date"] = pd.to_datetime(x[field], errors="coerce").dt.normalize()
+            x["date"] = (pd.to_datetime(x[field], errors="coerce")
+                         .astype("datetime64[ns]").dt.normalize())
             return x.dropna(subset=["date"])
     raise ValueError("缺失日期字段: "+str(list(frame.columns)))
 
@@ -80,7 +81,8 @@ def cached_china_yields(today, fetcher=china_yields, cache_path=None):
         if path.exists():
             existing=pd.read_csv(path)
             if {"date","y1","y10","y30"}.issubset(existing.columns):
-                existing["date"]=pd.to_datetime(existing["date"],errors="coerce").dt.normalize()
+                existing["date"]=(pd.to_datetime(existing["date"],errors="coerce")
+                                  .astype("datetime64[ns]").dt.normalize())
                 for key in ("y1","y10","y30"):
                     existing[key]=pd.to_numeric(existing[key],errors="coerce")
                 existing=existing.dropna().sort_values("date").drop_duplicates("date",keep="last")
@@ -103,7 +105,8 @@ def cached_china_yields(today, fetcher=china_yields, cache_path=None):
     if not required.issubset(result.columns):
         raise ValueError("Bond yield cache is missing required columns")
     result=result.copy()
-    result["date"]=pd.to_datetime(result["date"],errors="coerce").dt.normalize()
+    result["date"]=(pd.to_datetime(result["date"],errors="coerce")
+                    .astype("datetime64[ns]").dt.normalize())
     for key in ("y1","y10","y30"):
         result[key]=pd.to_numeric(result[key],errors="coerce")
     result=result.dropna().sort_values("date").drop_duplicates("date",keep="last")

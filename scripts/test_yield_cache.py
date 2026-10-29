@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from update import cached_china_yields
+from update import cached_china_yields, dated
 
 
 class YieldCacheTest(unittest.TestCase):
@@ -35,6 +35,24 @@ class YieldCacheTest(unittest.TestCase):
             self.assertEqual(len(first),len(second))
             self.assertEqual(float(second.y10.iloc[-1]),2.1)
             self.assertEqual(second.date.nunique(),len(second))
+
+    def test_csv_datetime_units_compatible_with_pe(self):
+        # Cached csv and official PE can parse as datetime64[us] vs [s].
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"china_yields_daily.csv"
+            cached_china_yields(self.today,self.fetch,path)
+            left=pd.DataFrame({
+                "date":self.all_data["date"].tail(40).astype("datetime64[s]"),
+                "pe":24.0,
+            })
+            left=dated(left).sort_values("date")
+            yields=cached_china_yields(self.today,self.fetch,path)
+            aligned=pd.merge_asof(left,yields[["date","y10"]],
+                                  on="date",direction="backward",
+                                  tolerance=pd.Timedelta(days=5))
+            self.assertTrue(aligned.y10.notna().all())
+            self.assertEqual(str(left.date.dtype),"datetime64[ns]")
+            self.assertEqual(str(yields.date.dtype),"datetime64[ns]")
 
     def test_incomplete_history_never_cached(self):
         with tempfile.TemporaryDirectory() as folder:

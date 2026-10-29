@@ -9,7 +9,8 @@ WINDOWS = (3, 5, 10)
 
 def _clean(frame, column):
     src = frame[["date", column]].copy()
-    src["date"] = pd.to_datetime(src["date"], errors="coerce").dt.normalize()
+    src["date"] = (pd.to_datetime(src["date"], errors="coerce")
+                   .astype("datetime64[ns]").dt.normalize())
     src[column] = pd.to_numeric(src[column], errors="coerce")
     src = src.dropna(subset=["date", column])
     src = src[src[column].map(math.isfinite)]
