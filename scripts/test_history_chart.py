@@ -27,6 +27,28 @@ class TestHistoryChart(unittest.TestCase):
         self.assertTrue(stock["p10"] <= stock["p20"] <= stock["p50"] <=
                         stock["p80"] <= stock["p90"])
         self.assertTrue(0 <= stock["percentile"] <= 100)
+        self.assertEqual(set(stock["periods"]), {"3", "5", "10"})
+        for years in (3, 5, 10):
+            period = stock["periods"][str(years)]
+            cutoff = self.frame.date.iloc[-1] - pd.DateOffset(years=years)
+            values = self.frame.loc[self.frame.date >= cutoff, "erp"]
+            self.assertEqual(period["sampleCount"], len(values))
+            self.assertEqual(period["p90"], round(float(values.quantile(.9)), 4))
+            self.assertEqual(period["p10"], round(float(values.quantile(.1)), 4))
+            self.assertEqual(period["percentile"],
+                             round(float(values.le(values.iloc[-1]).mean() * 100), 2))
+        self.assertEqual(stock["p90"], stock["periods"]["10"]["p90"])
+
+    def test_reference_values_change_with_year_selection(self):
+        dates = self.frame["date"]
+        years_from_start = (dates - dates.iloc[0]).dt.days / 365.25
+        trend = pd.DataFrame({"date": dates, "erp": years_from_start / 2})
+        result = build_history(trend)
+        periods = result["series"]["csi500"]["periods"]
+        self.assertGreater(periods["3"]["p50"], periods["5"]["p50"])
+        self.assertGreater(periods["5"]["p50"], periods["10"]["p50"])
+        self.assertGreater(periods["3"]["p80"], periods["5"]["p80"])
+        self.assertNotEqual(periods["3"]["sampleCount"], periods["10"]["sampleCount"])
 
     def test_monthly_fallback_is_labelled(self):
         monthly = self.frame.copy()
@@ -35,6 +57,7 @@ class TestHistoryChart(unittest.TestCase):
         result = build_history(monthly, frequency="monthly")
         self.assertEqual(result["frequency"], "monthly")
         self.assertTrue(110 <= len(result["series"]["csi500"]["points"]) <= 125)
+        self.assertEqual(set(result["series"]["csi500"]["periods"]), {"3", "5", "10"})
 
     def test_official_source_matches_yield_without_future_pe(self):
         dates = pd.bdate_range("2016-10-20", "2026-10-28")

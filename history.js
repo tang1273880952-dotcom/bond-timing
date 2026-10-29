@@ -57,10 +57,12 @@
       button.setAttribute('aria-pressed', String(chosen));
     });
     const d = data?.series?.csi500;
+    const period = d?.periods?.[String(state.years)];
     if (!d || !Array.isArray(d.points) || d.points.length < 24 ||
-        !lines.every(l => Number.isFinite(Number(d[l.id]))) ||
-        !Number.isFinite(Number(d.percentile))) {
-      error('历史数据正在更新，暂不显示未经验证的估值曲线。');
+        !period || !lines.every(l => Object.prototype.hasOwnProperty.call(period, l.id) &&
+          Number.isFinite(Number(period[l.id]))) ||
+        !Number.isFinite(Number(period.percentile))) {
+      error('正在生成与所选年份对应的历史分位参考线，请等待网站数据更新。');
       return;
     }
     const end = timestamp(d.date);
@@ -75,25 +77,26 @@
     ).sort((a,b)=>a.t-b.t);
     if (pts.length < 12) {error('该区间的实际数据不足。');return;}
 
-    const percentile = Number(d.percentile);
+    const percentile = Number(period.percentile);
     const zone = zones.find(z => percentile >= z.low) || zones[zones.length-1];
     const position = zones.indexOf(zone);
     const isWeekly = data.frequency === 'weekly';
     el('history-frequency').textContent =
       (isWeekly ? '真实周线 · 每周最后一个交易日' : '月线 · 日度历史PE尚不可用') +
-      ' · 固定近10年分位标准';
+      ' · 参考线按当前选定的近' + state.years + '年重新计算';
     el('history-current').innerHTML =
       '<div class="history-metric"><span>当前ERP</span><strong>' + fmt(d.latest) + '</strong></div>' +
-      '<div class="history-metric"><span>近10年历史分位</span><strong>' + fmt(percentile,1) + '</strong></div>' +
+      '<div class="history-metric"><span>近' + state.years + '年历史分位</span><strong>' + fmt(percentile,1) + '</strong></div>' +
       '<div class="history-state ' + zone.tone + '"><span>估值判断</span><strong>' + zone.name + '</strong></div>' +
       '<p class="history-asof">观测日期：' + d.date + ' · ' + (isWeekly ? '真实周度走势' : '真实月度走势') + '</p>';
     el('history-description').textContent = zone.text;
-    el('history-note').textContent = '五条横向虚线固定使用近10年' +
-      (isWeekly ? '真实日度' : '实际月度') + 'ERP观测计算，不随3/5/10年图表切换而变化。';
+    el('history-note').textContent = '五条虚线依据近' + state.years + '年' +
+      (isWeekly ? '真实日度' : '实际月度') + 'ERP观测计算（有效样本' +
+      period.sampleCount + '个）。切换3年／5年／10年时，参考线和估值判断同步变化。';
     el('history-legend').innerHTML =
       '<div class="legend-item"><span class="legend-line" style="--line:#3769D2;--dash:none"></span>蓝线 · ERP' + (isWeekly ? '周' : '月') + '度走势</div>' +
       lines.map(l => '<div class="legend-item"><span class="legend-line" style="--line:' +
-        l.color + '"></span>' + l.label + '（' + fmt(d[l.id]) + '）</div>').join('');
+        l.color + '"></span>' + l.label + '（' + fmt(period[l.id]) + '）</div>').join('');
     el('history-zones').innerHTML = bandRows.map((r,i) =>
       '<div class="history-zone-row ' + (i === position ? 'selected' : '') +
       '"><span>' + r[0] + '</span><strong>' + r[1] + (i === position ? ' · 当前' : '') +
@@ -102,7 +105,7 @@
 
     const W=860,H=292,L=53,R=23,T=22,B=38;
     const plotW=W-L-R,plotH=H-T-B;
-    const refValues=lines.map(l => Number(d[l.id]));
+    const refValues=lines.map(l => Number(period[l.id]));
     const values=pts.map(p=>p.v).concat(refValues);
     const minVal=Math.min(...values), maxVal=Math.max(...values);
     const pad=Math.max(.10,(maxVal-minVal)*.10);
@@ -119,7 +122,7 @@
         value.toFixed(2)+'</text>';
     }
     for(const l of lines){
-      svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(d[l.id])+'" y2="'+y(d[l.id])+
+      svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(period[l.id])+'" y2="'+y(period[l.id])+
         '" stroke="'+l.color+'" stroke-width="1.5" stroke-dasharray="6 5"/>';
     }
     svg+='<path d="'+path+'" fill="none" stroke="#3769D2" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';

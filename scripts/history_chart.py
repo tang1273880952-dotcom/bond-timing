@@ -84,23 +84,40 @@ def build_history(erp_frame, frequency="weekly", source=None):
     if len(display) < 24:
         raise ValueError("历史走势图有效时间点不足")
     erp = src["erp"]
-    qs = {"p" + str(n): round(float(erp.quantile(n / 100)), 4)
-          for n in QUANTILES}
+    latest = float(erp.iloc[-1])
+    last_date = src.date.iloc[-1]
+    periods = {}
+    for years in (3, 5, 10):
+        cutoff = last_date - pd.DateOffset(years=years)
+        window = src.loc[src.date >= cutoff, "erp"]
+        minimum = 8 * years if frequency == "monthly" else 150 * years
+        if len(window) < minimum:
+            raise ValueError(f"近{years}年ERP真实样本不足: {len(window)} < {minimum}")
+        periods[str(years)] = {
+            "from": str(cutoff.date()),
+            "to": str(last_date.date()),
+            "sampleCount": len(window),
+            "percentile": round(float(window.le(latest).mean() * 100), 2),
+            **{"p" + str(n): round(float(window.quantile(n / 100)), 4)
+               for n in QUANTILES},
+        }
+    ten_year = periods["10"]
     return {
-        "version": 2,
+        "version": 3,
         "metric": "csi500_erp",
         "unit": "%",
         "frequency": frequency,
         "source": source or ("中证指数官方滚动PE及中国10年国债收益率" if frequency == "weekly"
                             else "乐咕乐股月度滚动PE及中国10年国债收益率"),
-        "reference": "最近10年全部真实观测值的分位；不是ETF价格或回测",
+        "reference": "3年、5年、10年各自用对应区间的真实ERP观测计算分位；不是ETF价格或回测",
         "series": {
             "csi500": {
                 "date": str(src.date.iloc[-1].date()),
-                "latest": round(float(erp.iloc[-1]), 4),
-                "percentile": round(float(erp.le(erp.iloc[-1]).mean() * 100), 2),
-                **qs,
+                "latest": round(latest, 4),
+                "percentile": ten_year["percentile"],
+                **{key: ten_year[key] for key in ("p10", "p20", "p50", "p80", "p90")},
                 "sampleCount": len(src),
+                "periods": periods,
                 "points": [[str(row.date.date()), round(float(row.erp), 4)]
                            for row in display.itertuples(index=False)],
             }
