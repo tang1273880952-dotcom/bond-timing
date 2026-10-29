@@ -51,11 +51,26 @@ function topList(){
 }
 function renderTop(){
  const c=market.coverage||{};let ranked=topList();
- $("count").textContent=ranked.length+"只精选";
- $("coverage").textContent="本次估值扫描 "+(c.market||0)+" 只，已取得有效估值 "+(c.scanned||0)+" 只；财务评分核验 "+(c.qualityVerified||0)+" 只。"+(market.mode==="live"?"":" 当前为待同步/部分数据状态。")+" 排名只在已核验样本中产生，不等于全市场全部公司已完成财报复核。";
+ $("count").textContent=ranked.length+"只样本精选";
+ const universe=Number(c.market)||0,checked=Number(c.qualityVerified)||0,covered=Number(c.scanned)||0;
+ const percent=universe>0?(covered/universe*100).toFixed(1)+"%":"待确认";
+ $("coverage").textContent=(universe>=2000?"全A股股票名录 "+universe+" 只；当前完成行情估值 "+covered+" 只（"+percent+"），完成财务和PB评分复核 "+checked+" 只。":"全市场股票名录尚未完整取得；当前仅有 "+covered+" 只行情估值，"+checked+" 只评分通过核验。")+
+ " 本榜仅在已验证的有限样本中排名，不代表全A股最优10只。"+(c.fullQuoteSnapshot===false?" 免费全市场行情接口不可用，正在使用BaoStock轮动补充。":"");
  appendCards("ranking",ranked,(s,i)=>"精选榜 #"+(i+1));
- let q=query.trim().toLowerCase(),res=q?(market.stocks||[]).filter(s=>s.code.includes(q)||String(s.name).toLowerCase().includes(q)).slice(0,25):[];
- $("all-title").textContent=q?'搜索到 '+res.length+' 只（最多显示25只）':'可输入股票代码/名称，查询已扫描的股票。';
+ let q=query.trim().toLowerCase();
+ let res=q?(market.stocks||[]).filter(s=>s.code.includes(q)||String(s.name).toLowerCase().includes(q)).slice(0,25):[];
+ if(q&&res.length<25&&market.universe){
+   const known=new Set(res.map(s=>s.code));
+   for(const [code,name] of Object.entries(market.universe)){
+     if(res.length>=25)break;
+     if(known.has(code)||(market.stocks||[]).some(x=>x.code===code))continue;
+     if(code.includes(q)||String(name).toLowerCase().includes(q)){
+       res.push({code,name,price:null,pe:null,pb:null,score:null,pbPct:null});
+       known.add(code);
+     }
+   }
+ }
+ $("all-title").textContent=q?'找到 '+res.length+' 只候选（至多25只，未核验股票不显示评分）':'可输入股票代码/名称查询全A股名录；未核验股票不显示虚构分数。';
  $("all-results").textContent="";
  if(q){if(res.length)for(const s of res)$("all-results").appendChild(stockCard(s));else $("all-results").innerHTML='<div class="empty">尚未扫描到该股票。可先通过 GitHub 表单添加到持仓或观察池，下一轮会优先查询。</div>'}
 }
