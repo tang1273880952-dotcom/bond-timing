@@ -2,6 +2,13 @@ name: Update scores and publish website
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'a-share/**'
+      - 'scripts/update_a_share.py'
+      - 'scripts/apply_holding.py'
+      - '.github/workflows/ashare.yml'
+      - '.github/workflows/portfolio.yml'
+      - 'requirements-screener.txt'
   workflow_dispatch:
   schedule:
     - cron: '0 14,15 * * 1-5'
