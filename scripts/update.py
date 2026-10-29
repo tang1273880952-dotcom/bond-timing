@@ -6,7 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import pandas as pd
 import akshare as ak
-from history_chart import build_history, official_csi500_erp, _clean
+from history_chart import build_history, build_monthly_erp, official_csi500_erp, _clean
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data"
@@ -132,7 +132,61 @@ def calculate():
             raw_erp=_clean(pd.concat([cached,recent],ignore_index=True),"erp")
             raw_erp=raw_erp[raw_erp.date>=market_end-pd.DateOffset(years=20)]
             print("Official CSI500 cache refreshed",len(raw_erp),flush=True)
-        history=build_history(raw_erp,frequency="weekly")
+        # Use one consistent monthly source for the *entire* historical 10Y
+        # percentile band. It begins in 2007, while daily CSI PE starts in 2011.
+        # Do not silently combine monthly and daily observations in one ranking.
+        monthly_cache=OUT/"csi500_erp_monthly.csv"
+        long_term_monthly=None
+        try:
+            if monthly_cache.exists():
+                old=_clean(pd.read_csv(monthly_cache),"erp")
+                if len(old)<200 or old.date.min()>pd.Timestamp("2007-05-31"):
+                    old=None
+            else:
+                old=None
+            if old is None:
+                old_start=pd.Timestamp("2007-01-01")
+                if y.date.min()>old_start:
+                    older_bonds=china_yields(
+                        old_start.date(),(y.date.min()-pd.Timedelta(days=1)).date()
+                    )
+                    all_bonds=pd.concat([older_bonds,y],ignore_index=True)
+                else:
+                    all_bonds=y
+                long_term_monthly=build_monthly_erp(pe,all_bonds)
+                print("10Y genuine monthly ERP history bootstrapped",
+                      len(long_term_monthly),flush=True)
+            else:
+                # Refresh observations covered by the regular 12-year yield feed.
+                recent_pe=pe.loc[pe.date>=y.date.min()].copy()
+                recent=pd.merge_asof(
+                    recent_pe,y[["date","y10"]],on="date",
+                    direction="backward",tolerance=pd.Timedelta(days=5)
+                ).dropna(subset=["y10"])
+                recent["erp"]=100/recent.pe-recent.y10
+                if recent.empty:
+                    raise ValueError("最近月度PE与国债收益率没有匹配数据")
+                long_term_monthly=_clean(pd.concat([
+                    old.loc[old.date<y.date.min(),["date","erp"]],
+                    recent[["date","erp"]]
+                ],ignore_index=True),"erp")
+                print("10Y genuine monthly ERP history refreshed",
+                      len(long_term_monthly),flush=True)
+            if (market_end-long_term_monthly.date.max()).days>36:
+                raise ValueError("10Y monthly valuation backfill is stale")
+            if len(long_term_monthly)<200:
+                raise ValueError("10Y monthly valuation backfill has too few samples")
+        except Exception as ex:
+            print("Monthly long-history backfill unavailable; keep valid shorter "
+                  "daily rolling band:",repr(ex),flush=True)
+            long_term_monthly=None
+        history=build_history(
+            raw_erp,frequency="weekly",long_term_monthly=long_term_monthly
+        )
+        if long_term_monthly is not None:
+            long_term_monthly[["date","erp"]].to_csv(
+                monthly_cache,index=False,float_format="%.7f"
+            )
         # Commit cache only after all data validations have passed.
         raw_erp[["date","erp"]].to_csv(cache_path,index=False,float_format="%.7f")
         print("CSI500 rolling band counts",
