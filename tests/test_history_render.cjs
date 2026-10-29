@@ -39,7 +39,7 @@ const ys=['#147D52','#55AC81','#939BAA','#E3A364','#C66B43'].map(yOf);
 assert.ok(ys.every((y,i)=>i===0||y>ys[i-1]),'high ERP percentiles on top');
 assert.ok(svg.includes('stroke="#8450C6" stroke-opacity="0.35"'),'pale index overlay remains');
 assert.ok(dom['history-legend'].innerHTML.includes('90% · 极低估参考（4.30%）'));
-dom['history-svg'].on_pointermove({clientX:830});
+dom['history-svg'].on_pointermove({clientX:700});
 assert.ok(dom['history-hover'].textContent.includes('当前水平参考线（2026-09-30）'));
 assert.ok(dom['history-hover'].textContent.includes('80% 3.30%'));
 assert.ok(dom['history-hover'].textContent.includes('20% 1.70%'));
