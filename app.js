@@ -101,15 +101,15 @@ $('reload').onclick=load;
 load();
 
 function usDecision(asset,held){
-  const s=asset.score,below=asset.trend==='below_200d',above=asset.trend==='above_200d',known=above||below;
+  const s=asset.score,below=asset.trend==='below_10m',above=asset.trend==='above_10m',known=above||below;
   if(!held){
-    if(s>=85&&below)return {title:'估值较低，但等趋势企稳',detail:'虽然风险溢价处于较有利区间，但指数在200日均线下方；考虑等趋势改善或严格控制分批规模。',tone:'neutral'};
-    if(s>=70)return {title:'关注分批买入',detail:'估值相对历史更有吸引力。'+(known?'同时检查200日均线、分批金额与风险预算。':'暂缺有效价格趋势数据，不应据此判断最佳买点。'),tone:'positive'};
+    if(s>=85&&below)return {title:'估值较低，但等趋势企稳',detail:'虽然风险溢价处于较有利区间，但月度指数价格低于近10个月均价；考虑等趋势改善或严格控制分批规模。',tone:'neutral'};
+    if(s>=70)return {title:'关注分批买入',detail:'估值相对历史更有吸引力。'+(known?'同时检查中期趋势、分批金额与风险预算。':'暂缺有效价格趋势数据，不应据此判断最佳买点。'),tone:'positive'};
     if(s>=55)return {title:'小额观察，勿急于重仓',detail:'美股股债风险溢价尚未显示明显优势，可等待更好的风险补偿。',tone:'neutral'};
     return {title:'暂缓新增买入',detail:'标普500盈利收益率相对美国10年国债的吸引力较低。估值偏贵可以维持很久，不意味着马上会跌。',tone:'warning'};
   }
-  if(s<=30&&below)return {title:'关注逐步减仓的条件',detail:'估值性价比偏低，且收盘点位位于200日均线下方；应结合你的成本、仓位和投资期限评估减仓，不能机械清仓。',tone:'warning'};
-  if(s<=40)return {title:'持有者关注止盈与仓位',detail:'估值风险相对偏高。'+(above?'指数仍在200日均线上方，单凭估值不构成卖出确认。':'暂无足够的趋势确认。')+' 可检查仓位是否超出原定比例。',tone:'warning'};
+  if(s<=30&&below)return {title:'关注逐步减仓的条件',detail:'估值性价比偏低，且月度价格低于近10个月均价；应结合你的成本、仓位和投资期限评估减仓，不能机械清仓。',tone:'warning'};
+  if(s<=40)return {title:'持有者关注止盈与仓位',detail:'估值风险相对偏高。'+(above?'月度价格仍高于近10个月均价，单凭估值不构成卖出确认。':'暂无足够的趋势确认。')+' 可检查仓位是否超出原定比例。',tone:'warning'};
   if(s>=70)return {title:'继续持有，观察趋势',detail:'历史估值相对有利，但市场可能继续波动。持仓风险、趋势和个人计划仍重要。',tone:'positive'};
   return {title:'持有观察',detail:'尚无仅凭估值就应卖出的依据。结合收益预期、仓位、成本及市场趋势再决定。',tone:'neutral'};
 }
@@ -125,7 +125,7 @@ function renderUS(){
   const held=Boolean(selected.sp500);
   const tip=usDecision(d,held);
   const open=Boolean(expanded.sp500);
-  const trend=d.trend==='above_200d'?'价格在200日均线上方':d.trend==='below_200d'?'价格在200日均线下方':'价格趋势尚无可验证数据';
+  const trend=d.trend==='above_10m'?'月度指数高于近10个月均价':d.trend==='below_10m'?'月度指数低于近10个月均价':'月度价格趋势尚无可验证数据';
   meta.textContent='PE观测 '+d.valuationDate+' · 美债收益率 '+d.yieldDate+(status&&status.success===false?' · 最近更新失败，显示上次有效值':'');
   const metrics=(d.metrics||[]).map(m=>'<div class="card-metric"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('');
   section.innerHTML='<div class="us-card-main"><div><div class="us-score">'+d.score+'<small>/100 · 买入估值分</small></div><div class="us-result">'+grade(d.score)+'</div></div></div>'+
@@ -134,8 +134,8 @@ function renderUS(){
     '<div class="us-tip '+tip.tone+'"><strong>'+safe(tip.title)+'</strong><p>'+safe(tip.detail)+'</p></div>'+
     '<button type="button" data-us-expand="yes" class="expand-trigger" aria-expanded="'+open+'">'+(open?'收起美股数据 ▲':'展开美股股债比数据 ▼')+'</button>'+
     (open?'<div class="card-metrics">'+metrics+'</div>':'')+
-    '<div class="us-observation">标普500PE为月度TTM口径，最新月份可能为估算；风险溢价=100/PE−美国10年国债收益率。买入估值分不是卖出概率，策略未经回测。</div>'+
-    '<div class="us-sources"><a href="https://www.multpl.com/s-p-500-pe-ratio/table/by-month" target="_blank" rel="noopener">PE来源</a><a href="https://fred.stlouisfed.org/series/DGS10" target="_blank" rel="noopener">美债来源</a><a href="https://fred.stlouisfed.org/series/SP500" target="_blank" rel="noopener">标普指数来源</a></div>';
+    '<div class="us-observation">标普500PE为月度TTM口径，最新可能为估算；美债收益率目前也采用月度观测，不是当日10Y报价。风险溢价=100/PE−美债10Y。买入估值分不是卖出概率，策略未经回测。</div>'+
+    '<div class="us-sources"><a href="https://www.multpl.com/s-p-500-pe-ratio/table/by-month" target="_blank" rel="noopener">PE来源</a><a href="https://www.multpl.com/10-year-treasury-rate/table/by-month" target="_blank" rel="noopener">美债月度来源</a><a href="https://www.multpl.com/s-p-500-historical-prices/table/by-month" target="_blank" rel="noopener">标普月度价格来源</a></div>';
 }
 const usSection=$('us-card');
 if(usSection)usSection.addEventListener('click',event=>{
