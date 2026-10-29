@@ -6,6 +6,8 @@ on:
     paths:
       - 'scripts/update_a_share_fast.py'
       - 'scripts/merge_a_share_quick.py'
+      - 'scripts/a_share_value_model.py'
+      - 'tests/**'
       - '.github/workflows/ashare-fast.yml'
   schedule:
     - cron: '0 11 * * 1-5' # Asia/Shanghai 19:00, weekdays
@@ -35,7 +37,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-screener.txt
       - name: Check fast scan syntax
-        run: python -m py_compile scripts/a_share_value_model.py scripts/update_a_share_fast.py
+        run: |
+          python -m py_compile scripts/a_share_value_model.py scripts/update_a_share_fast.py scripts/merge_a_share_quick.py
+          python -m unittest discover -s tests -p "test_*.py" -v
       - name: Broad PE PB quote check, no 10-year history
         env:
           ASHARE_FAST_LIMIT: '240'

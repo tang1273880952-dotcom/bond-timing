@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/ashare.yml'
       - 'scripts/update_a_share.py'
+      - 'scripts/a_share_value_model.py'
+      - 'tests/**'
   schedule:
     - cron: '0 12 * * 1-5' # Asia/Shanghai 20:00, weekdays
 permissions:
@@ -57,7 +59,7 @@ jobs:
       - name: Check valuation model and regression tests
         run: |
           python -m py_compile scripts/a_share_value_model.py scripts/update_a_share.py scripts/update_a_share_fast.py
-          python -m unittest discover -s tests -p "test_a_share_value_model.py" -v
+          python -m unittest discover -s tests -p "test_*.py" -v
       - name: Update stock shortlist and PB Band
         env:
           ASHARE_MAX_FINANCIAL: '35'

@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - 'a-share/**'
+      - 'a-share/data/**'
       - 'scripts/update_a_share.py'
       - 'scripts/update_a_share_fast.py'
       - 'scripts/merge_a_share_quick.py'

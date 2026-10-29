@@ -8,6 +8,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from a_share_value_model import financial
 
 TZ=ZoneInfo("Asia/Shanghai")
 def read(path):
@@ -19,6 +20,7 @@ def read(path):
 def phase(row):
     name=str(row.get("name") or "")
     if row.get("isST") or "ST" in name.upper():return "风险警示"
+    if financial(row.get("code"),name,row.get("industry")):return "金融行业待独立估值"
     try: pe,pb=float(row["pe"]),float(row["pb"])
     except (ValueError,TypeError,KeyError):return "暂不入围"
     if pe<=0 or pb<=0:return "暂不入围"
@@ -38,14 +40,20 @@ def merge(old, new):
     latest=(old if (old.get("generatedAt") or "")>(new.get("generatedAt") or "") else new)
     universe=max(int((old.get("coverage") or {}).get("universe") or 0),
                  int((new.get("coverage") or {}).get("universe") or 0))
-    for item in united.values():item["stage"]=phase(item)
+    for c,item in united.items():
+        item["code"]=c
+        item["stage"]=phase(item)
     now=datetime.now(TZ)
     cutoff=(now.date()-timedelta(days=12)).isoformat()
+    latest_date=max((i.get("date") or "" for i in united.values()),default="")
+    same_date=sum(1 for i in united.values() if i.get("date")==latest_date)
+    confirmed_full=(bool((old.get("coverage") or {}).get("fullSnapshot")) or
+                    bool((new.get("coverage") or {}).get("fullSnapshot")))
     counts={"universe":universe,
             "everQuoted":len(united),
             "recentQuoted":sum((i.get("date") or "")>=cutoff for i in united.values()),
             "preselected":sum(i["stage"]=="待财报复核" for i in united.values()),
-            "fullSnapshot":len(united)>=int(universe*.95) if universe else False,
+            "fullSnapshot":bool(universe and confirmed_full and same_date>=int(universe*.95)),
             "source":"合并全市场行情与分批回填" if left and right else
                      (latest.get("coverage") or {}).get("source",""),
             "batchLimit":(latest.get("coverage") or {}).get("batchLimit")}
