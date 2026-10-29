@@ -34,6 +34,8 @@ jobs:
           cache-dependency-path: requirements-screener.txt
       - name: Install dependencies
         run: python -m pip install -r requirements-screener.txt
+      - name: Check fast scan syntax
+        run: python -m py_compile scripts/a_share_value_model.py scripts/update_a_share_fast.py
       - name: Broad PE PB quote check, no 10-year history
         env:
           ASHARE_FAST_LIMIT: '240'
