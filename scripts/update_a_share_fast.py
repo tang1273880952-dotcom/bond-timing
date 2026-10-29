@@ -149,16 +149,22 @@ def main():
             pinned={p["code"] for p in manual.get("positions",[]) if isinstance(p,dict)}
             pinned.update(w if isinstance(w,str) else w.get("code") for w in manual.get("watch",[]))
             pinned={c for c in pinned if c in master}
-            fresh=[c for c in codes if c not in quotes]
-            pointer=int(previous.get("cursor",0))
-            # Use a persisted scan pointer: no accidental restart from old favourites.
-            selected=sorted(pinned)+fresh[:max(0,MAX_FAST-len(pinned))]
+            # Remember attempts even when a quote source fails so the same
+            # few delisted/illiquid codes do not block every subsequent batch.
+            recent_attempts=previous.get("attempts") or {}
+            cutoff=(TODAY-timedelta(days=5)).isoformat()
+            recent_attempts={c:d for c,d in recent_attempts.items() if
+                             isinstance(d,str) and d>=cutoff}
+            fresh=[c for c in codes if c not in quotes and c not in recent_attempts]
+            selected=list(sorted(pinned))[:MAX_FAST]
+            selected+=fresh[:max(0,MAX_FAST-len(selected))]
             if len(selected)<MAX_FAST:
                 stale=sorted((c for c in codes if c not in selected and c in quotes),
                    key=lambda c:(quotes[c].get("date") or "1970-01-01",c))
                 selected+=stale[:MAX_FAST-len(selected)]
             updated=0
             for i,code in enumerate(selected,1):
+                recent_attempts[code]=TODAY.isoformat()
                 x=latest_bs(bs,code)
                 if x:
                     quotes[code]={"code":code,"name":master[code],**x}
@@ -182,7 +188,7 @@ def main():
                       "recentQuoted":recent,"preselected":preselected,
                       "fullSnapshot":complete,"source":source,
                       "batchLimit":MAX_FAST},
-          "cursor":len(valid),"quotes":valid,
+          "cursor":len(valid),"attempts":locals().get("recent_attempts",previous.get("attempts") or {}),"quotes":valid,
           "method":"仅最新价格、PE和PB的粗筛。PE来源可能为动态口径或TTM，不能跨口径直接排名；不含ROE、现金流、历史PB分位或综合评分。","sources":["AKShare Eastmoney spot","BaoStock daily valuations"]}
     FILE.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf8")
     print("QUICK success",data["coverage"],flush=True)
