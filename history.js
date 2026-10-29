@@ -114,7 +114,7 @@
       (incomplete?' 较早时期缺少完整'+state.years+'年估值历史，滚动参考带从'+p.bands[0][0]+'才开始绘制；空白区域不是0%。':'');
     el('history-legend').innerHTML=
       '<div class="legend-item"><span class="legend-line" style="--line:#3769D2;--dash:none"></span>蓝线 · ERP'+(weekly?'周度':'月度')+'真实走势（左轴 %）</div>'+
-      (indexVisible?'<div class="legend-item"><span class="legend-line" style="--line:#8450C6;--dash:none"></span>紫线 · 中证500指数收盘（右轴 点）</div>':'')+
+      (indexVisible?'<div class="legend-item"><span class="legend-line" style="--line:rgba(132,80,198,0.35);--dash:none"></span>紫线 · 中证500指数收盘（右轴 点）</div>':'')+
       lines.map(l=>'<div class="legend-item"><span class="legend-line" style="--line:'+
         l.color+'"></span>'+l.label+'（目前'+fmt(p[l.id])+'）</div>').join('');
     el('history-zones').innerHTML=bandRows.map((row,i)=>
@@ -146,11 +146,11 @@
       if(indexVisible){
         const idxValue=indexMin+(indexMax-indexMin)*i/4;
         svg+='<text x="'+(W-R+8)+'" y="'+(yIndex(idxValue)+4)+
-          '" fill="#8450C6" font-size="11" text-anchor="start">'+Math.round(idxValue).toLocaleString('en-US')+'</text>';
+          '" fill="#8450C6" fill-opacity="0.58" font-size="11" text-anchor="start">'+Math.round(idxValue).toLocaleString('en-US')+'</text>';
       }
     }
     svg+='<text x="'+(L-12)+'" y="12" text-anchor="middle" fill="#71819b" font-size="10">ERP %</text>';
-    if(indexVisible)svg+='<text x="'+(W-8)+'" y="12" text-anchor="end" fill="#8450C6" font-size="10">指数点位</text>';
+    if(indexVisible)svg+='<text x="'+(W-8)+'" y="12" text-anchor="end" fill="#8450C6" fill-opacity="0.58" font-size="10">指数点位</text>';
     // Pale center band, with lines retained as the precise data. No future values.
     if(bands.length>=2){
       // Raw bands order: [date, p10, p20, p50, p80, p90].
@@ -178,10 +178,10 @@
     if(indexVisible){
       svg+='<path d="'+indexPoints.map((row,i)=>(i?'L':'M')+
         x(row.t).toFixed(2)+' '+yIndex(row.v).toFixed(2)).join(' ')+
-        '" fill="none" stroke="#8450C6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+        '" fill="none" stroke="#8450C6" stroke-opacity="0.35" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round"/>';
       const lastIndex=indexPoints[indexPoints.length-1];
       svg+='<circle cx="'+x(lastIndex.t)+'" cy="'+yIndex(lastIndex.v)+
-        '" r="4" fill="#8450C6" stroke="white" stroke-width="1.5"/>';
+        '" r="4" fill="#8450C6" fill-opacity="0.48" stroke="white" stroke-width="1.5"/>';
     }
     svg+='<path d="'+valuePath(prices,r=>r.v)+
       '" fill="none" stroke="#3769D2" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';
@@ -191,7 +191,7 @@
     svg+='<line id="history-guide" x1="0" x2="0" y1="'+T+'" y2="'+(H-B)+
       '" stroke="#7589ae" stroke-dasharray="4 4" visibility="hidden"/>';
     svg+='<circle id="history-dot" cx="0" cy="0" r="5" fill="#3769D2" stroke="#fff" stroke-width="2" visibility="hidden"/>';
-    if(indexVisible)svg+='<circle id="index-dot" cx="0" cy="0" r="5" fill="#8450C6" stroke="#fff" stroke-width="2" visibility="hidden"/>';
+    if(indexVisible)svg+='<circle id="index-dot" cx="0" cy="0" r="5" fill="#8450C6" fill-opacity="0.72" stroke="#fff" stroke-width="2" visibility="hidden"/>';
     svg+='<rect x="'+L+'" y="'+T+'" width="'+plotW+'" height="'+plotH+'" fill="transparent"/>';
     svg+='<text x="'+L+'" y="'+(H-9)+'" font-size="11" fill="#8191a7">'+prices[0].date.slice(0,7)+'</text>';
     svg+='<text x="'+(W-R)+'" y="'+(H-9)+'" font-size="11" fill="#8191a7" text-anchor="end">'+current.date.slice(0,7)+'</text></svg>';
