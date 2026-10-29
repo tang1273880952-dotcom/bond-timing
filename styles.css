@@ -32,3 +32,18 @@
 .us-sources{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;margin-top:10px}
 .us-sources a{color:#416bd0;text-decoration:none}
 @media(min-width:700px){.us-card-main{justify-content:flex-start;gap:24px}}
+
+/* Historical valuation chart: self-contained and unobtrusive. */
+.history-panel{border:1px solid #e1e8f4}
+.history-panel h3{margin:4px 0 12px}
+.history-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.history-switch{display:flex;gap:4px;background:#eef2f8;border-radius:10px;padding:4px;max-width:100%}
+.history-switch button{font-size:12px;padding:9px 12px;background:transparent;color:#677792;border-radius:7px;cursor:pointer;white-space:nowrap}
+.history-switch button.active{background:#fff;color:#2555a5;box-shadow:0 1px 6px #253d6a1b}
+.history-switch button:focus-visible{outline:2px solid #487ce0}
+.history-summary{font-size:15px;color:#263e65;font-weight:750;margin:17px 0 5px}
+.history-svg{display:block;width:100%;height:auto;max-height:310px}
+.history-empty{background:#f7f9fc;border:1px dashed #dbe3ef;border-radius:10px;color:#71809a;padding:30px 12px;text-align:center;font-size:13px}
+.history-hover{font-size:12px;color:#416ac1;min-height:18px;margin-top:4px}
+.history-note{font-size:12px;color:#6e7e97;line-height:1.7;margin:8px 0 0}
+@media(max-width:650px){.history-toolbar{align-items:flex-start}.history-switch button{font-size:11px;padding:8px 9px}.history-summary{font-size:14px}}

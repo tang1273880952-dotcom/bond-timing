@@ -6,6 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import pandas as pd
 import akshare as ak
+from history_chart import build_history
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data"
@@ -113,6 +114,7 @@ def calculate():
         "stockPEDataDate":str(last.date.date()),
         "stockPBDataDate":str(latest_pb.date.date()),
         "generatedAt":now.isoformat(),
+        "history":build_history(stock_win,bond_win),
         "assets":[
           {"id":"csi500","name":"中证500","score":stockscore,"metrics":[
             ["股债风险溢价",f"{last.erp:.2f}%"],

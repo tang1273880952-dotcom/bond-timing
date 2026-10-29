@@ -95,7 +95,7 @@ async function load() {
   }
   latest=await get(0);syncStatus=await get(1);
   usLatest=await get(2);usStatus=await get(3);
-  render();renderUS();
+  render();renderUS();if(window.renderHistory)window.renderHistory(latest&&latest.history);
 }
 $('reload').onclick=load;
 load();
