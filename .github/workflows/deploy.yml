@@ -57,7 +57,20 @@ jobs:
           git add data/
           if ! git diff --cached --quiet; then
             git commit -m "chore: refresh scores"
-            git push
+            # Another workflow may update main while data is calculated.
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then
+                echo "Data published on attempt $attempt"
+                break
+              fi
+              if [ "$attempt" -eq 5 ]; then
+                echo "::error::Data push failed after five attempts"
+                exit 1
+              fi
+              sleep 2
+            done
           fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
