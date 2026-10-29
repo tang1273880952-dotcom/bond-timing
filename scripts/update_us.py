@@ -20,6 +20,8 @@ TZ = ZoneInfo("Asia/Shanghai")
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; BondTimingResearch/1.0; educational research)", "Accept": "text/html,text/csv,*/*"}
 PE_URL = "https://www.multpl.com/s-p-500-pe-ratio/table/by-month"
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series}"
+YIELD_MONTHLY_URL = "https://www.multpl.com/10-year-treasury-rate/table/by-month"
+PRICE_MONTHLY_URL = "https://www.multpl.com/s-p-500-historical-prices/table/by-month"
 
 def download(url):
     response = requests.get(url, headers=HEADERS, timeout=45)
@@ -60,6 +62,32 @@ def get_pe():
     frame = frame.drop_duplicates("month", keep="last").drop(columns="month")
     return frame.sort_values("date").reset_index(drop=True)
 
+def monthly_table(url, value_name):
+    html=download(url)
+    soup=BeautifulSoup(html, "html.parser")
+    table=soup.find("table", id="datatable") or soup.find("table")
+    if table is None:
+        raise ValueError("Missing monthly history table: "+url)
+    rows=[]
+    for tr in table.find_all("tr"):
+        cells=tr.find_all("td")
+        if len(cells)<2:
+            continue
+        day=pd.to_datetime(cells[0].get_text(" ",strip=True),format="%b %d, %Y",errors="coerce")
+        raw=cells[1].get_text(" ",strip=True)
+        num=re.findall(r"\d+(?:,\d{3})*(?:\.\d+)?",raw)
+        if pd.isna(day) or not num:
+            continue
+        val=float(num[-1].replace(",",""))
+        if val>0 and val<100000:
+            rows.append((day.normalize(),val))
+    frame=pd.DataFrame(rows,columns=["date",value_name])
+    if len(frame)<120:
+        raise ValueError("Monthly series too short: "+value_name+" "+str(len(frame)))
+    frame=frame.sort_values("date").drop_duplicates("date")
+    frame["month"]=frame.date.dt.to_period("M")
+    return frame.drop_duplicates("month",keep="last").drop(columns="month").reset_index(drop=True)
+
 def fred(series):
     source = download(FRED_CSV.format(series=series))
     frame = pd.read_csv(StringIO(source))
@@ -84,18 +112,22 @@ def percent_rank(values, current):
 def calculate():
     now = datetime.now(TZ)
     pe = get_pe()
-    yield_history = fred("DGS10").rename(columns={"value":"yield10"})
-    merged = pd.merge_asof(pe, yield_history, on="date", direction="backward", tolerance=pd.Timedelta(days=7))
+    # Matching at each observation's actual date prevents future-lookahead.
+    # The monthly fallback is independent of the FRED daily feed.
+    yield_history = monthly_table(YIELD_MONTHLY_URL, "yield10")
+    yield_history = yield_history.rename(columns={"date":"yieldSourceDate"})
+    merged = pd.merge_asof(pe, yield_history.rename(columns={"yieldSourceDate":"date"}),
+                           on="date", direction="backward", tolerance=pd.Timedelta(days=42))
     merged = merged.dropna(subset=["yield10"]).copy()
     if len(merged) < 120:
         raise ValueError("PE and Treasury yields have too little matched history: "+str(len(merged)))
     merged["erp"] = 100.0 / merged.pe - merged.yield10
     latest = merged.iloc[-1]
     latest_yield = yield_history.iloc[-1]
-    if (latest_yield.date - latest.date).days > 42:
+    if (latest_yield.yieldSourceDate - latest.date).days > 42:
         raise ValueError("US PE stale: " + str(latest.date.date()))
-    if (pd.Timestamp(now.date()) - latest_yield.date).days > 10:
-        raise ValueError("US Treasury yield stale: " + str(latest_yield.date.date()))
+    if (pd.Timestamp(now.date()) - latest_yield.yieldSourceDate).days > 45:
+        raise ValueError("US Treasury yield stale: " + str(latest_yield.yieldSourceDate.date()))
     window = merged[merged.date >= latest.date - pd.DateOffset(years=10)]
     if len(window) < 90:
         raise ValueError("Insufficient observations in last ten years: " + str(len(window)))
@@ -105,25 +137,24 @@ def calculate():
     trend = "unknown"
     price_date = None
     price = None
-    ma200 = None
-    ma50 = None
+    ma10 = None
     price_error = None
     try:
-        prices = fred("SP500").rename(columns={"value":"spx"})
-        if len(prices) >= 220 and (pd.Timestamp(now.date()) - prices.iloc[-1].date).days <= 8:
-            price = float(prices.iloc[-1].spx)
-            price_date = str(prices.iloc[-1].date.date())
-            ma200 = float(prices.spx.tail(200).mean())
-            ma50 = float(prices.spx.tail(50).mean())
-            trend = "above_200d" if price >= ma200 else "below_200d"
+        monthly_prices=monthly_table(PRICE_MONTHLY_URL, "spx")
+        p0=monthly_prices.iloc[-1]
+        if len(monthly_prices)>=24 and (pd.Timestamp(now.date())-p0.date).days<=45:
+            price=float(p0.spx)
+            price_date=str(p0.date.date())
+            ma10=float(monthly_prices.spx.tail(10).mean())
+            trend="above_10m" if price>=ma10 else "below_10m"
         else:
-            price_error = "S&P 500 index closing price unavailable or stale"
+            price_error="Monthly S&P 500 price history missing or stale"
     except Exception as exc:
-        price_error = str(exc)
-        print("Price trend optional source unavailable", price_error, flush=True)
+        price_error=str(exc)
+        print("Monthly SP500 trend unavailable",price_error,flush=True)
     metrics = [
         ["标普500 PE（TTM）", f"{latest.pe:.2f}倍"],
-        ["美国10年国债收益率（与PE对齐）", f"{latest.yield10:.2f}%"],
+        ["美国10年国债收益率（月度，与PE对齐）", f"{latest.yield10:.2f}%"],
         ["FED风险溢价（盈利收益率−美债10Y）", f"{latest.erp:+.2f}%"],
         ["风险溢价10年分位", f"{erp_rank:.1f}%"],
         ["PE 10年分位", f"{pe_rank:.1f}%"],
@@ -132,9 +163,9 @@ def calculate():
     ]
     if price is not None:
         metrics.extend([
-            ["标普500收盘点位", f"{price:,.2f}"],
-            ["200日均线", f"{ma200:,.2f}"],
-            ["收盘日期", price_date]
+            ["标普500月度指数点位", f"{price:,.2f}"],
+            ["最近10个月均价", f"{ma10:,.2f}"],
+            ["月度价格日期", price_date]
         ])
     output = {
         "mode":"live",
@@ -149,8 +180,8 @@ def calculate():
         "trend":trend,
         "trendSourceWarning":price_error,
         "metrics":metrics,
-        "model":"PE为历史月度TTM（可能含最新估算）；10年国债日度收益率按PE发布日期向前配对；分位使用最近十年对应月度观测；评分=65% ERP分位+35% PE反向分位，未回测；趋势来自SP500收盘与200日均线，缺失则不提供趋势结论。",
-        "sources":[PE_URL,"https://fred.stlouisfed.org/series/DGS10","https://fred.stlouisfed.org/series/SP500"]
+        "model":"PE和美债收益率均按实际月度观测日期向前配对；最新PE可能是估算。评分=65% ERP历史10年分位+35% PE反向分位，未经回测。趋势为标普500月度价格相对于近10个月均值，不能视为200日均线。",
+        "sources":[PE_URL,YIELD_MONTHLY_URL,PRICE_MONTHLY_URL]
     }
     print("US score",score,"PE",latest.pe,"yield",latest.yield10,"ERP",latest.erp,"trend",trend,flush=True)
     return output
