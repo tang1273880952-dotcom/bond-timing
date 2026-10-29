@@ -1,0 +1,61 @@
+{
+  "mode": "live",
+  "id": "sp500",
+  "name": "标普500",
+  "score": 11,
+  "valuationDate": "2026-10-28",
+  "yieldDate": "2026-10-28",
+  "priceDate": "2026-10-28",
+  "generatedAt": "2026-10-29T08:03:05.612829+08:00",
+  "estimatedPE": false,
+  "trend": "above_10m",
+  "trendSourceWarning": null,
+  "metrics": [
+    [
+      "标普500 PE（TTM）",
+      "26.44倍"
+    ],
+    [
+      "美国10年国债收益率（月度，与PE对齐）",
+      "5.05%"
+    ],
+    [
+      "FED风险溢价（盈利收益率−美债10Y）",
+      "-1.27%"
+    ],
+    [
+      "风险溢价10年分位",
+      "0.8%"
+    ],
+    [
+      "PE 10年分位",
+      "70.8%"
+    ],
+    [
+      "PE数据日期",
+      "2026-10-28"
+    ],
+    [
+      "美国10Y月度来源日期",
+      "2026-10-28"
+    ],
+    [
+      "标普500月度指数点位",
+      "7,809.58"
+    ],
+    [
+      "最近10个月均价",
+      "7,296.86"
+    ],
+    [
+      "月度价格日期",
+      "2026-10-28"
+    ]
+  ],
+  "model": "PE和美债收益率均按实际月度观测日期向前配对；最新PE可能是估算。评分=65% ERP历史10年分位+35% PE反向分位，未经回测。趋势为标普500月度价格相对于近10个月均值，不能视为200日均线。",
+  "sources": [
+    "https://www.multpl.com/s-p-500-pe-ratio/table/by-month",
+    "https://www.multpl.com/10-year-treasury-rate/table/by-month",
+    "https://www.multpl.com/s-p-500-historical-prices/table/by-month"
+  ]
+}

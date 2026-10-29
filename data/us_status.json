@@ -1,5 +1,6 @@
 {
-  "attemptAt": "2026-10-29T08:01:59.027428+08:00",
-  "success": false,
-  "error": "'Series' object has no attribute 'date'"
+  "attemptAt": "2026-10-29T08:03:05.612805+08:00",
+  "success": true,
+  "valuationDate": "2026-10-28",
+  "priceDate": "2026-10-28"
 }
