@@ -65,6 +65,58 @@ def china_yields(start, end):
     print("Bond yield records",len(out),out.date.min(),out.date.max(),flush=True)
     return out
 
+def cached_china_yields(today, fetcher=china_yields, cache_path=None):
+    """Fetch only the recent yield tail after an authentic 12-year bootstrap.
+
+    First run downloads the full history. Later runs refresh 45 overlapping
+    calendar days (one API chunk) and reconcile duplicate dates. Never fill
+    missing market days or interpolate observed yields.
+    """
+    today=pd.Timestamp(today).normalize()
+    start=today-pd.Timedelta(days=12*366)
+    path=Path(cache_path) if cache_path is not None else OUT/"china_yields_daily.csv"
+    cache=None
+    try:
+        if path.exists():
+            existing=pd.read_csv(path)
+            if {"date","y1","y10","y30"}.issubset(existing.columns):
+                existing["date"]=pd.to_datetime(existing["date"],errors="coerce").dt.normalize()
+                for key in ("y1","y10","y30"):
+                    existing[key]=pd.to_numeric(existing[key],errors="coerce")
+                existing=existing.dropna().sort_values("date").drop_duplicates("date",keep="last")
+                if (len(existing)>=1500 and
+                    existing.date.min()<=start+pd.Timedelta(days=28) and
+                    today-existing.date.max()<=pd.Timedelta(days=90)):
+                    cache=existing
+    except (OSError,ValueError,TypeError) as exc:
+        print("Bond yield cache invalid; rebuilding:",repr(exc),flush=True)
+    if cache is None:
+        print("Bond yields: first full-history download",flush=True)
+        result=fetcher(start.date(),today.date())
+    else:
+        tail=max(start,cache.date.max()-pd.Timedelta(days=45))
+        recent=fetcher(tail.date(),today.date())
+        result=pd.concat([cache,recent],ignore_index=True)
+        print("Bond yields: fetched only last",int((today-tail).days),
+              "calendar days",flush=True)
+    required={"date","y1","y10","y30"}
+    if not required.issubset(result.columns):
+        raise ValueError("Bond yield cache is missing required columns")
+    result=result.copy()
+    result["date"]=pd.to_datetime(result["date"],errors="coerce").dt.normalize()
+    for key in ("y1","y10","y30"):
+        result[key]=pd.to_numeric(result[key],errors="coerce")
+    result=result.dropna().sort_values("date").drop_duplicates("date",keep="last")
+    result=result[(result.date>=start)&(result.date<=today)]
+    if (len(result)<1500 or result.date.min()>start+pd.Timedelta(days=35)
+        or today-result.date.max()>pd.Timedelta(days=10)):
+        raise ValueError("Bond yield history is incomplete or stale; cache not written")
+    result[["date","y1","y10","y30"]].to_csv(
+        path,index=False,float_format="%.7f"
+    )
+    return result
+
+
 def rank(frame,column,value,min_obs=80):
     values=pd.to_numeric(frame[column],errors="coerce").dropna()
     if len(values)<min_obs:
@@ -75,7 +127,7 @@ def calculate():
     now=datetime.now(CN_TZ)
     today=now.date()
     pe,pb=stock_valuations()
-    y=china_yields(today-timedelta(days=12*366),today)
+    y=cached_china_yields(today)
     if len(y)<1500:raise ValueError("长期国债历史不足: "+str(len(y)))
     y["s10"]=y.y10-y.y1
     y["s30"]=y.y30-y.y10
