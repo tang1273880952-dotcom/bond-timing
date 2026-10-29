@@ -53,25 +53,23 @@
     if(valid&& !data.periods?.["3"]){
       el('bse-note').textContent='成立以来有效ERP样本不足完整三年，三年分位暂不计算。';
     }
-    el('bse-summary').innerHTML=valid?
-      metric('当前ERP',fmt(data.erp)+'%','PE与同期10年国债收益率之差')+
-      metric('滚动PE',fmt(data.pe)+'倍')+
-      metric('10年国债收益率',fmt(data.yield10,3)+'%')+
-      metric('近'+state.years+'年分位',haveERP?fmt(period.percentile,1)+'%':'—',haveERP?zone(period.percentile):'对应历史样本不足'):
-      '<div class="bse-alert"><strong>北证50ERP暂无法核验</strong>：'+
-      '官方滚动PE缺失或数据尚未同步。不显示猜测的估值分位。'+
-      '</div>'+(data?.indexLatest&&Number.isFinite(data.indexLatest)?
-      metric('已核验指数点位',fmt(data.indexLatest)+'点',String(data.date||'')):'');
-    if(!haveERP){
-      el('bse-note').textContent='北证50指数点位与历史ERP分开核验。'+
-        (valid?'该时间范围尚不足以计算水平分位线。':(data?.reason||'尚无已核验的PE数据。'))+
-        ' 没有真实ERP数据时不绘制假曲线。';
-    }else{
-      el('bse-note').textContent='当前ERP日期 '+data.valuationDate+'。近'+state.years+
-        '年分位参考截止 '+period.referenceDate+'，采用'+period.sampleCount+
-        '个真实日度样本，每月根据上一个完整月份更新水平线。' +
-        ' 北证50的历史分位不能与中证500直接比较。';
-    }
+    const tone=!haveERP?'neutral':period.percentile>=80?'cheap':
+      period.percentile>=60?'watch':period.percentile>=40?'neutral':
+      period.percentile>=20?'caution':'rich';
+    el('bse-summary').className='bse-summary tone-'+tone;
+    el('bse-summary').innerHTML=haveERP?
+      metric('当前ERP',fmt(data.erp)+'%')+
+      metric('近'+state.years+'年分位',fmt(period.percentile,1)+'%')+
+      metric('估值状态',zone(period.percentile),
+        'PE '+fmt(data.pe)+'倍 · 国债 '+fmt(data.yield10,2)+'%'):
+      '<div class="bse-alert"><strong>ERP暂不可用</strong> · '+
+      (valid?'该年限样本不足':(data?.reason||'待真实数据验证'))+
+      '</div>'+(Number.isFinite(Number(data?.indexLatest))?
+      metric('指数点位',fmt(data.indexLatest)+'点',String(data.date||'')):'');
+    el('bse-note').textContent=haveERP?
+      'ERP日期 '+data.valuationDate+' · 分位截止 '+period.referenceDate+
+      ' · 真实日度样本 '+period.sampleCount+' · 每月更新':
+      (valid?'该区间估值样本不足':(data?.reason||'行情尚未核验'));
     const plotIndex=prices.length>=12;
     const plotERP=haveERP&&erps.length>=12;
     if(!plotIndex&&!plotERP){

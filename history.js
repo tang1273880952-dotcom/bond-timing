@@ -43,6 +43,8 @@
     render(saved);
   });
   function error(msg){
+    const viewTone=pct>=80?'cheap':pct>=60?'watch':pct>=40?'neutral':pct>=20?'caution':'rich';
+    el('history-current').className='history-current tone-'+viewTone;
     el('history-current').innerHTML='<div class="history-empty">'+msg+'</div>';
     el('history-chart').innerHTML='';
     el('history-hover').textContent='';
@@ -89,23 +91,20 @@
     const position=zones.indexOf(zone),weekly=data.frequency==='weekly';
     const nearMedian=pct>=40&&pct<=60;
     const stateName=nearMedian?'历史中位附近':zone.name;
-    const explanation=nearMedian?'目前ERP接近所选区间的历史中位，属于相对估值正常区间，不能认定明显高估或低估。':zone.text;
+    const explanation=nearMedian?'接近历史中位':pct>=80?'相对偏便宜':pct>=60?'略偏便宜':pct<20?'相对偏贵':'处于历史常见区间';
     const isMonthlyBand=p.basis==='月度真实观测';
-    el('history-frequency').textContent=(weekly?'真实ERP周线':'真实ERP月线')+
-      ' · 近'+state.years+'年水平分位参考线 · 按'+(isMonthlyBand?'月度':'日度')+
-      '历史样本计算 · 参考截止 '+p.referenceDate+'（每月修正）';
+    el('history-frequency').textContent=(weekly?'ERP周线':'ERP月线')+
+      ' · 近'+state.years+'年水平分位参考线 · '+(isMonthlyBand?'月度':'日度')+
+      '样本 · 截止'+p.referenceDate+' · 每月更新';
     el('history-current').innerHTML=
       '<div class="history-metric"><span>当前ERP</span><strong>'+fmt(d.latest)+'</strong></div>'+
       '<div class="history-metric"><span>近'+state.years+'年历史分位'+(isMonthlyBand?'（月度）':'')+'</span><strong>'+fmt(pct,1)+'</strong></div>'+
       '<div class="history-state '+zone.tone+'"><span>当前估值判断</span><strong>'+stateName+'</strong></div>'+
       '<p class="history-asof">观测日期：'+d.date+' · '+(weekly?'周度ERP曲线':'月度ERP曲线')+'</p>';
     el('history-description').textContent=explanation;
-    el('history-note').textContent='水平线分别为近'+state.years+
-      '年历史ERP的10% / 20% / 50% / 80% / 90%分位，使用'+p.sampleCount+
-      '个真实'+(isMonthlyBand?'月度':'日度')+'数据点。截止 '+p.referenceDate+
-      '，参考值在同一个自然月内保持不变，进入下个月再根据新完成的月份修正。'+
-      ' 最新ERP可每日变化，其相对参考分位也可能变动。'+
-      (isMonthlyBand?' 10年参考线采用统一月度估值来源，可能与官方周度ERP有小幅差异。':'');
+    el('history-note').textContent='参考 '+p.referenceDate+' · '+p.sampleCount+
+      '个真实'+(isMonthlyBand?'月度':'日度')+'样本 · 水平线每月更新'+
+      (isMonthlyBand?'（10年采用月度口径）':'');
     el('history-legend').innerHTML=
       '<div class="legend-item"><span class="legend-line" style="--line:#3769D2;--dash:none"></span>蓝线 · ERP'+(weekly?'周度':'月度')+'真实走势（左轴 %）</div>'+
       (indexVisible?'<div class="legend-item"><span class="legend-line" style="--line:rgba(132,80,198,0.35);--dash:none"></span>紫线 · 中证500指数收盘（右轴 点）</div>':'')+
