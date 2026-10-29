@@ -42,6 +42,10 @@ jobs:
       - name: Verify valuation history sampling
         if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-history]')
         run: python -m unittest discover -s scripts -p 'test_history_chart.py'
+      - name: Check chart percentile order and tooltips
+        run: |
+          node --check history.js
+          node tests/test_history_render.cjs
       - name: Download data and calculate scores
         if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-history]')
         run: python scripts/update.py

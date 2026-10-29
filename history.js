@@ -9,11 +9,11 @@
   const fmt=(n,d=2)=>Number(n).toFixed(d)+'%';
   let saved=null;
   const lines=[
-    {id:'p90',at:1,label:'90% · 极低估参考',color:'#147D52'},
-    {id:'p80',at:2,label:'80% · 低估参考',color:'#55AC81'},
+    {id:'p90',at:5,label:'90% · 极低估参考',color:'#147D52'},
+    {id:'p80',at:4,label:'80% · 低估参考',color:'#55AC81'},
     {id:'p50',at:3,label:'50% · 历史中位',color:'#939BAA'},
-    {id:'p20',at:4,label:'20% · 偏高估参考',color:'#E3A364'},
-    {id:'p10',at:5,label:'10% · 高估参考',color:'#C66B43'}
+    {id:'p20',at:2,label:'20% · 偏高估参考',color:'#E3A364'},
+    {id:'p10',at:1,label:'10% · 高估参考',color:'#C66B43'}
   ];
   const zones=[
     {low:90,name:'极度相对低估',text:'中证500相对国债的历史估值吸引力非常高，可以重点研究分批买入。',tone:'positive'},
@@ -72,19 +72,23 @@
     if(prices.length<12){error('当前范围内有效ERP历史数据不足。');return;}
     const pct=Number(p.percentile),zone=zones.find(z=>pct>=z.low)||zones[zones.length-1];
     const position=zones.indexOf(zone),weekly=data.frequency==='weekly';
+    const nearMedian=pct>=40&&pct<=60;
+    const stateName=nearMedian?'历史中位附近':zone.name;
+    const explanation=nearMedian?'目前ERP接近所选区间的历史中位，属于相对估值正常区间，不能认定明显高估或低估。':zone.text;
     el('history-frequency').textContent=(weekly?'真实ERP周线':'真实ERP月线')+
       ' · '+state.years+'年滚动估值带每月更新 · 各历史时点不使用未来数据';
     el('history-current').innerHTML=
       '<div class="history-metric"><span>当前ERP</span><strong>'+fmt(d.latest)+'</strong></div>'+
       '<div class="history-metric"><span>近'+state.years+'年历史分位</span><strong>'+fmt(pct,1)+'</strong></div>'+
-      '<div class="history-state '+zone.tone+'"><span>当前估值判断</span><strong>'+zone.name+'</strong></div>'+
+      '<div class="history-state '+zone.tone+'"><span>当前估值判断</span><strong>'+stateName+'</strong></div>'+
       '<p class="history-asof">观测日期：'+d.date+' · '+(weekly?'周度ERP曲线':'月度ERP曲线')+'</p>';
-    el('history-description').textContent=zone.text;
+    el('history-description').textContent=explanation;
     const bandStarts=p.bands.length ? dateValue(p.bands[0][0]) : NaN;
     const incomplete=Number.isFinite(bandStarts)&&bandStarts>cutoff.getTime()+60*864e5;
     el('history-note').textContent='五条彩色曲线：在每个历史月末，用此前'+state.years+
       '年ERP观测重新计算10% / 20% / 50% / 80% / 90%分位。本月按最新交易日更新。'+
       ' 当前参考线使用'+p.sampleCount+'个'+(weekly?'日度':'月度')+'样本。'+
+      '滚动分位线可能因旧数据离开窗口而出现拐点或跳变；为保证数据口径准确，未对分位数进行人为平滑。'+
       (incomplete?' 较早时期缺少足够的真实日度历史，滚动参考带从'+p.bands[0][0]+'才开始绘制；空白区域不是0%。':'');
     el('history-legend').innerHTML=
       '<div class="legend-item"><span class="legend-line" style="--line:#3769D2;--dash:none"></span>蓝线 · ERP'+(weekly?'周度':'月度')+'真实走势</div>'+
@@ -114,8 +118,9 @@
     }
     // Pale center band, with lines retained as the precise data. No future values.
     if(bands.length>=2){
-      const upper=bands.map(row=>x(row.t).toFixed(2)+' '+y(row.vals[1]).toFixed(2));
-      const lower=[...bands].reverse().map(row=>x(row.t).toFixed(2)+' '+y(row.vals[3]).toFixed(2));
+      // Raw bands order: [date, p10, p20, p50, p80, p90].
+      const upper=bands.map(row=>x(row.t).toFixed(2)+' '+y(row.vals[3]).toFixed(2));
+      const lower=[...bands].reverse().map(row=>x(row.t).toFixed(2)+' '+y(row.vals[1]).toFixed(2));
       svg+='<path d="M'+upper.join(' L')+' L'+lower.join(' L')+
         ' Z" fill="#c6d1e6" fill-opacity=".17"/>';
     }
@@ -170,8 +175,8 @@
       let band=null;
       for(const candidate of bands){if(candidate.t<=picked.t)band=candidate;else break;}
       hover.textContent=picked.date+' · ERP '+fmt(picked.v)+
-        (band?' ｜ 截至'+band.date+'的'+state.years+'年参考：80% '+fmt(band.vals[1])+
-        '、20% '+fmt(band.vals[3]):' ｜ 当时历史样本不足，暂无分位参考');
+        (band?' ｜ 截至'+band.date+'的'+state.years+'年参考：80% '+fmt(band.vals[3])+
+        '、20% '+fmt(band.vals[1]):' ｜ 当时历史样本不足，暂无分位参考');
     };
     graph.addEventListener('pointermove',select);
     graph.addEventListener('pointerdown',select);
