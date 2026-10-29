@@ -57,6 +57,7 @@ jobs:
           python -m unittest discover -s tests -p 'test_build_pages.py'
           node --check app.js
           node --check a-share/app.js
+          node tests/test_dashboard_layout.cjs
       - name: Check chart percentile order and tooltips
         run: |
           node --check history.js
