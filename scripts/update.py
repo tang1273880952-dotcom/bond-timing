@@ -6,7 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import pandas as pd
 import akshare as ak
-from history_chart import build_history, build_monthly_erp, official_csi500_erp, _clean
+from history_chart import build_history, build_monthly_erp, official_csi500_erp, official_csi500_close, build_index_overlay, _clean
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data"
@@ -194,6 +194,42 @@ def calculate():
     except Exception as exc:
         print("Full rolling ERP not available; honest partial monthly fallback:",repr(exc),flush=True)
         history=build_history(stock_win,frequency="monthly")
+    # Independent optional overlay: index CLOSE only, never ETF price or ERP.
+    # Kept separate so an index-price provider outage cannot break score updates.
+    index_cache = OUT/"csi500_index_close_daily.csv"
+    try:
+        prior = _clean(pd.read_csv(index_cache), "close") if index_cache.exists() else None
+        if prior is not None and (
+            len(prior) < 1800 or prior.date.iloc[0] > market_end - pd.DateOffset(years=9)
+        ):
+            prior = None
+        if prior is None:
+            index_raw = official_csi500_close(market_end)
+            print("Official CSI500 index CLOSE bootstrapped", len(index_raw), flush=True)
+        else:
+            refresh_from = max(
+                market_end - pd.Timedelta(days=400),
+                prior.date.iloc[-1] - pd.Timedelta(days=15)
+            )
+            recent_close = official_csi500_close(market_end, start=refresh_from)
+            index_raw = _clean(
+                pd.concat([prior, recent_close], ignore_index=True), "close"
+            )
+            index_raw = index_raw[
+                index_raw.date >= market_end - pd.DateOffset(years=10) - pd.Timedelta(days=15)
+            ]
+            print("Official CSI500 index CLOSE refreshed", len(index_raw), flush=True)
+        index_overlay = build_index_overlay(index_raw, market_end)
+        history["series"]["csi500"]["indexClose"] = index_overlay
+        index_raw[["date", "close"]].to_csv(
+            index_cache, index=False, float_format="%.4f"
+        )
+        print("CSI500 index CLOSE weekly overlay",
+              len(index_overlay["points"]), index_overlay["latest"], flush=True)
+    except Exception as exc:
+        print("CSI500 actual index CLOSE unavailable; overlay omitted:",
+              repr(exc), flush=True)
+        history["series"]["csi500"].pop("indexClose", None)
     result = {
         "mode":"live",
         "dataDate":str(market_end.date()),

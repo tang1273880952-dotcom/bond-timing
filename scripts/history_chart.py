@@ -70,6 +70,72 @@ def official_csi500_erp(yields, end, api=None, years=10):
     return matched[["date", "erp"]].reset_index(drop=True)
 
 
+
+def official_csi500_close(end, api=None, start=None):
+    """Official CSI Index 000905 daily CLOSE levels (index points, not ETF NAV).
+
+    This shares the CSI index-perf provider used by the existing ERP series.
+    Missing data are never interpolated or made up.
+    """
+    if api is None:
+        import akshare as ak
+        api = ak.stock_zh_index_hist_csindex
+    end = pd.Timestamp(end).normalize()
+    start = pd.Timestamp(start).normalize() if start is not None else end - pd.DateOffset(years=10) - pd.Timedelta(days=15)
+    cursor = start
+    frames = []
+    while cursor <= end:
+        finish = min(cursor + pd.Timedelta(days=680), end)
+        raw = api(symbol="000905", start_date=cursor.strftime("%Y%m%d"),
+                  end_date=finish.strftime("%Y%m%d"))
+        if raw is None or raw.empty or "日期" not in raw.columns or "收盘" not in raw.columns:
+            raise ValueError("中证指数官方日度收盘点位数据不可用")
+        if "指数代码" in raw.columns:
+            codes = raw["指数代码"].astype(str).str.replace(r"\.0$", "", regex=True)
+            raw = raw[codes.str.zfill(6) == "000905"]
+        if raw.empty:
+            raise ValueError("指数代码非000905，停止导入")
+        frames.append(raw[["日期", "收盘"]].rename(columns={"日期": "date", "收盘": "close"}))
+        cursor = finish + pd.Timedelta(days=1)
+    result = _clean(pd.concat(frames, ignore_index=True), "close")
+    result = result[result.close > 0].reset_index(drop=True)
+    if result.empty or (end - result.date.iloc[-1]).days > 8:
+        raise ValueError("中证500指数历史收盘价过期或空缺")
+    return result
+
+
+def build_index_overlay(daily_close, end):
+    """Weekly real index CLOSE observations on the same date axis as ERP."""
+    end = pd.Timestamp(end).normalize()
+    data = _clean(daily_close, "close")
+    data = data[data.close > 0]
+    cutoff = end - pd.DateOffset(years=10)
+    data = data[(data.date >= cutoff) & (data.date <= end)].copy()
+    if len(data) < 1800:
+        raise ValueError("中证500指数10年周线日度源样本不足")
+    if data.date.iloc[0] > cutoff + pd.Timedelta(days=24):
+        raise ValueError("中证500指数历史起点不足10年")
+    if (end - data.date.iloc[-1]).days > 8:
+        raise ValueError("中证500指数收盘价不是最新交易日")
+    data["week"] = data.date.dt.to_period("W-SUN")
+    sampled = data.drop_duplicates("week", keep="last")
+    if len(sampled) < 470:
+        raise ValueError("中证500指数周线历史不足")
+    return {
+        "code": "000905",
+        "name": "中证500指数",
+        "unit": "点",
+        "source": "中证指数公司官方指数日度收盘点位（不是ETF价格）",
+        "frequency": "weekly",
+        "date": str(data.date.iloc[-1].date()),
+        "latest": round(float(data.close.iloc[-1]), 2),
+        "points": [
+            [str(row.date.date()), round(float(row.close), 2)]
+            for row in sampled.itertuples(index=False)
+        ],
+    }
+
+
 def _window_asof(src, anchor, years, frequency):
     """Calculate using only observations available on or before anchor."""
     cutoff = anchor - pd.DateOffset(years=years)

@@ -2,7 +2,7 @@
 import unittest
 
 import pandas as pd
-from history_chart import build_history, build_monthly_erp, official_csi500_erp
+from history_chart import build_history, build_monthly_erp, official_csi500_erp, official_csi500_close, build_index_overlay
 
 
 class TestHistoryChart(unittest.TestCase):
@@ -93,6 +93,39 @@ class TestHistoryChart(unittest.TestCase):
         self.assertEqual(len(matched), len(dates))
         self.assertAlmostEqual(matched.erp.iloc[-1], 3.0)
         self.assertEqual(str(matched.date.iloc[0].date()), "2007-01-31")
+
+
+    def test_real_weekly_index_close(self):
+        dates = pd.bdate_range("2016-10-18", "2026-10-28")
+        data = pd.DataFrame({"date": dates, "close": [3500 + i * 0.6 for i in range(len(dates))]})
+        index = build_index_overlay(data, pd.Timestamp("2026-10-28"))
+        self.assertEqual(index["code"], "000905")
+        self.assertEqual(index["unit"], "点")
+        self.assertEqual(index["frequency"], "weekly")
+        self.assertTrue(480 <= len(index["points"]) <= 530)
+        self.assertEqual(index["points"][-1][0], "2026-10-28")
+        self.assertEqual(index["latest"], round(float(data.close.iloc[-1]), 2))
+        for date, close in index["points"]:
+            self.assertEqual(float(data.loc[data.date == pd.Timestamp(date), "close"].iloc[0]), close)
+
+    def test_index_close_api_is_actual_000905(self):
+        dates = pd.bdate_range("2024-01-02", "2026-10-28")
+        def fake_api(symbol, start_date, end_date):
+            self.assertEqual(symbol, "000905")
+            days = dates[(dates >= pd.Timestamp(start_date)) & (dates <= pd.Timestamp(end_date))]
+            return pd.DataFrame({"日期": days, "指数代码": "000905",
+                                 "收盘": [5000 + j for j in range(len(days))]})
+        result = official_csi500_close(pd.Timestamp("2026-10-28"),
+                                      api=fake_api, start="2026-01-01")
+        self.assertGreater(len(result), 180)
+        self.assertEqual(str(result.date.iloc[-1].date()), "2026-10-28")
+        self.assertTrue((result.close > 0).all())
+
+    def test_index_overlay_rejects_incomplete_history(self):
+        dates = pd.bdate_range("2024-01-01", "2026-10-28")
+        with self.assertRaises(ValueError):
+            build_index_overlay(pd.DataFrame({"date": dates, "close": 4000}),
+                                pd.Timestamp("2026-10-28"))
 
     def test_index_source_never_uses_future_yield(self):
         dates = pd.bdate_range("2016-10-20", "2026-10-28")
