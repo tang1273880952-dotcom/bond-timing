@@ -47,8 +47,12 @@ function render() {
   const byId=Object.fromEntries(d.assets.map(a=>[a.id,a]));
   const assets=['csi500','bond10','bond30'].map(id=>byId[id]).filter(Boolean);
   $('stamp').textContent='数据 '+safe(d.dataDate)+(st?.success===false?' · 最近更新失败，沿用旧数据':'');
-  $('pick').textContent='分别观察，不机械排名';
-  $('reason').textContent='绿色代表本资产历史相对便宜；股票与国债评分不直接比较。';
+  const individuallyCheap=[...assets,
+    (usLatest?.mode==='live'&&Number.isFinite(usLatest.score))?usLatest:null]
+    .filter(a=>a&&a.score>=70);
+  $('pick').textContent=individuallyCheap.length?
+    '低估参考：'+individuallyCheap.map(a=>a.name).join('、'):'暂无明显低估信号';
+  $('reason').textContent='仅按各自历史估值观察，不代表跨资产收益排名或买入指令。';
   $('cards').innerHTML=assets.map(a=>{
     const tone=scoreTone(a.score),open=Boolean(expanded[a.id]),held=Boolean(selected[a.id]);
     const first=(a.metrics||[])[0];
