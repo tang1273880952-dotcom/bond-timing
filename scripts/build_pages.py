@@ -4,6 +4,7 @@ Run from any directory:
     python scripts/build_pages.py "$RUNNER_TEMP/pages-site"
 """
 from pathlib import Path
+import json
 import shutil
 import sys
 
@@ -29,6 +30,15 @@ def build(destination):
         raise FileNotFoundError("Missing public assets: " + ", ".join(missing))
     if out.exists():
         shutil.rmtree(out)
+    # Verify JSON is parseable BEFORE deleting any prior build directory.
+    for rel in PUBLIC:
+        if rel.endswith(".json"):
+            try:
+                obj = json.loads((ROOT / rel).read_text(encoding="utf-8"))
+            except (UnicodeError, ValueError, OSError) as exc:
+                raise ValueError(f"Public JSON is invalid: {rel}") from exc
+            if not isinstance(obj, dict):
+                raise ValueError(f"Public JSON must contain an object: {rel}")
     for rel in PUBLIC:
         target = out / rel
         target.parent.mkdir(parents=True, exist_ok=True)
