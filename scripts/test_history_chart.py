@@ -60,7 +60,8 @@ class TestHistoryChart(unittest.TestCase):
         for years in ("3", "5", "10"):
             self.assertEqual(early[years]["referenceMonth"], "2026-08")
             self.assertEqual(late[years]["referenceMonth"], "2026-09")
-            self.assertNotEqual(early[years]["sampleCount"], late[years]["sampleCount"])
+            self.assertNotEqual(early[years]["referenceDate"], late[years]["referenceDate"])
+            self.assertGreater(late[years]["sampleCount"], 100)
 
     def test_missing_full_lookback_is_not_fabricated(self):
         incomplete = self.frame[self.frame.date >= pd.Timestamp("2016-10-28")]
