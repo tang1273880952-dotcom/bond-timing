@@ -188,15 +188,11 @@ def compute():
     manual=get_portfolio()
     oldcoverage=old.get("coverage",{})
     market_count=oldcoverage.get("market",0)
+    # The independent fast-stage job already checks full-market valuations.
+    # Avoid re-downloading all 5,000+ quotes for each deep-scoring run.
     spot={}
     spot_success=False
-    try:
-        spot=snapshot_all()
-        market_count=len(spot)
-        spot_success=True
-        print("All-market A-share quote snapshot",len(spot),flush=True)
-    except Exception as exc:
-        print("All-market API error; fallback to BaoStock selected stocks:",str(exc),flush=True)
+    print("Stage 2: reuse independent quick.json candidate pool",flush=True)
     login=bs.login()
     if login.error_code!="0":raise RuntimeError("BaoStock login failed: "+login.error_msg)
     try:
