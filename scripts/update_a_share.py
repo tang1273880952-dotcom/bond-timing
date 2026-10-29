@@ -250,7 +250,7 @@ def compute():
                 if quote:s.update(quote)
             if s.get("price") is None:
                 continue
-            need_fin=(not s.get("financeUpdated") or (TODAY-date.fromisoformat(s["financeUpdated"])).days>20)
+            need_fin=(not s.get("financeUpdated") or (TODAY-date.fromisoformat(s["financeUpdated"])).days>20 or (val(s.get("debtRatio")) is not None and val(s.get("debtRatio"))<1))
             if need_fin:
                 try:finance(bs,s,code,old);now_fin+=1
                 except Exception as e:print("Financial partial failure",code,str(e)[:160],flush=True)
