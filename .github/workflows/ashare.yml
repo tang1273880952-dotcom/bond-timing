@@ -7,7 +7,7 @@ on:
       - '.github/workflows/ashare.yml'
       - 'scripts/update_a_share.py'
   schedule:
-    - cron: '30 14,15 * * 1-5'
+    - cron: '0 12 * * 1-5' # Asia/Shanghai 20:00, weekdays
 permissions:
   contents: write
   pages: write
@@ -33,6 +33,27 @@ jobs:
           cache-dependency-path: 'requirements-screener.txt'
       - name: Install free data libraries
         run: python -m pip install -r requirements-screener.txt
+      - name: Require today's verified fast scan before scheduled deep evaluation
+        if: github.event_name == 'schedule'
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          today=datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat()
+          try:
+              st=json.loads(Path("a-share/data/quick_status.json").read_text(encoding="utf8"))
+              raw=json.loads(Path("a-share/data/quick.json").read_text(encoding="utf8"))
+          except (OSError, ValueError) as exc:
+              raise SystemExit("No verified same-day 19:00 fast scan: "+str(exc))
+          if (st.get("success") is not True
+              or str(st.get("attemptAt",""))[:10]!=today
+              or str(raw.get("generatedAt",""))[:10]!=today):
+              raise SystemExit("20:00 deep evaluation aborted: 19:00 fast scan is not current or failed")
+          available=(raw.get("coverage") or {}).get("everQuoted",0)
+          print("Verified same-day fast scan; available PE/PB records:",available)
+          PY
       - name: Update stock shortlist and PB Band
         env:
           ASHARE_MAX_FINANCIAL: '35'
