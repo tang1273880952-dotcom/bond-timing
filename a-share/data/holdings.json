@@ -1,6 +1,12 @@
 {
   "version": 1,
-  "updatedAt": null,
-  "positions": [],
+  "updatedAt": "2026-10-29T10:19:24+08:00",
+  "positions": [
+    {
+      "code": "603345",
+      "cost": 72.918,
+      "shares": 1500
+    }
+  ],
   "watch": []
 }
