@@ -54,6 +54,10 @@ jobs:
           available=(raw.get("coverage") or {}).get("everQuoted",0)
           print("Verified same-day fast scan; available PE/PB records:",available)
           PY
+      - name: Check valuation model and regression tests
+        run: |
+          python -m py_compile scripts/a_share_value_model.py scripts/update_a_share.py scripts/update_a_share_fast.py
+          python -m unittest discover -s tests -p "test_a_share_value_model.py" -v
       - name: Update stock shortlist and PB Band
         env:
           ASHARE_MAX_FINANCIAL: '35'
