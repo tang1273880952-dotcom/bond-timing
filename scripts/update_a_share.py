@@ -208,12 +208,16 @@ def compute():
         try:
             basic=bs.query_stock_basic()
             if basic.error_code=="0":
-                names=basic.get_data()
-                if "code" in names and "code_name" in names:
-                    for _,rec in names.iterrows():
-                        raw=str(rec["code"])
+                # BaoStock get_data() relies on pandas.DataFrame.append; avoid it.
+                columns=list(basic.fields)
+                if "code" in columns and "code_name" in columns:
+                    ci=columns.index("code")
+                    ni=columns.index("code_name")
+                    while basic.error_code=="0" and basic.next():
+                        rec=basic.get_row_data()
+                        raw=str(rec[ci])
                         if len(raw)>=9 and raw[:3] in ("sh.","sz."):
-                            basic_names[raw[3:]]=str(rec["code_name"]).strip()
+                            basic_names[raw[3:]]=str(rec[ni]).strip()
             print("BaoStock available code names",len(basic_names),flush=True)
         except Exception as exc:
             print("BaoStock stock name lookup unavailable",str(exc)[:180],flush=True)
