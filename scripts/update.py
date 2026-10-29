@@ -189,10 +189,13 @@ def calculate():
             )
         # Commit cache only after all data validations have passed.
         raw_erp[["date","erp"]].to_csv(cache_path,index=False,float_format="%.7f")
-        print("CSI500 rolling band counts",
-              {k:len(v["bands"]) for k,v in history["series"]["csi500"]["periods"].items()},flush=True)
+        print("CSI500 weekly ERP and monthly-locked horizontal references",
+              {k:{"referenceDate":v["referenceDate"],"sampleCount":v["sampleCount"]}
+               for k,v in history["series"]["csi500"]["periods"].items()},
+              flush=True)
     except Exception as exc:
-        print("Full rolling ERP not available; honest partial monthly fallback:",repr(exc),flush=True)
+        print("Official weekly ERP unavailable; using genuine monthly fallback:",
+              repr(exc),flush=True)
         history=build_history(stock_win,frequency="monthly")
     # Independent optional overlay: index CLOSE only, never ETF price or ERP.
     # Kept separate so an index-price provider outage cannot break score updates.
