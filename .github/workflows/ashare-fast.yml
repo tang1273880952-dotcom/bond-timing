@@ -1,0 +1,61 @@
+name: A-share fast broad-market valuation scan
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/update_a_share_fast.py'
+      - '.github/workflows/ashare-fast.yml'
+  schedule:
+    - cron: '10 14,15 * * 1-5'
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: bond-timing
+  cancel-in-progress: false
+jobs:
+  fast-market:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-screener.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements-screener.txt
+      - name: Broad PE PB quote check, no 10-year history
+        env:
+          ASHARE_FAST_LIMIT: '240'
+        run: python scripts/update_a_share_fast.py
+      - name: Safely commit snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp a-share/data/quick_status.json /tmp/ashare-quick-status.json
+          if [ -f a-share/data/quick.json ]; then cp a-share/data/quick.json /tmp/ashare-quick.json; fi
+          git fetch origin main
+          git reset --hard origin/main
+          cp /tmp/ashare-quick-status.json a-share/data/quick_status.json
+          if [ -f /tmp/ashare-quick.json ]; then cp /tmp/ashare-quick.json a-share/data/quick.json; fi
+          git add a-share/data/quick_status.json
+          if [ -f a-share/data/quick.json ]; then git add a-share/data/quick.json; fi
+          if ! git diff --cached --quiet; then
+            git commit -m "data: A-share fast initial valuation scan"
+            git push origin HEAD:main
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: '.'
+      - id: deployment
+        uses: actions/deploy-pages@v4
