@@ -8,7 +8,7 @@ permissions:
   pages: write
   id-token: write
 concurrency:
-  group: bond-timing
+  group: ashare-portfolio
   cancel-in-progress: false
 jobs:
   update:
