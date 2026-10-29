@@ -29,9 +29,9 @@ class TestHistoryChart(unittest.TestCase):
         self.assertTrue(0 <= stock["percentile"] <= 100)
 
     def test_monthly_fallback_is_labelled(self):
-        monthly = self.frame.drop_duplicates(
-            self.frame.date.dt.to_period("M").rename("period"), keep="last"
-        )
+        monthly = self.frame.copy()
+        monthly["period"] = monthly.date.dt.to_period("M")
+        monthly = monthly.drop_duplicates("period", keep="last")
         result = build_history(monthly, frequency="monthly")
         self.assertEqual(result["frequency"], "monthly")
         self.assertTrue(110 <= len(result["series"]["csi500"]["points"]) <= 125)
