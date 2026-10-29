@@ -89,9 +89,13 @@ def get_latest_bs(bs,code):
 def rows(bs,method,code,year,quarter):
     rs=getattr(bs,method)(code=baocode(code),year=year,quarter=quarter)
     if rs.error_code!="0":return None
-    d=rs.get_data()
-    if d.empty:return None
-    record=d.iloc[-1].to_dict()
+    # BaoStock get_data() is incompatible with pandas 2+ / 3.x;
+    # iterate records directly, matching the historical-price retrieval.
+    record=None
+    fields=list(rs.fields)
+    while rs.error_code=="0" and rs.next():
+        record=dict(zip(fields,rs.get_row_data()))
+    if record is None:return None
     pub=record.get("pubDate","")
     if pub and pub>TODAY.isoformat():return None
     return record
