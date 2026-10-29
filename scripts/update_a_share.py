@@ -261,10 +261,12 @@ def compute():
         limit=MAX_FINANCIAL if spot_success else MAX_FALLBACK
         remaining=max(0,limit-len(manual))
         new_slots=max(0,int(remaining*.75))
-        fresh=[c for c in candidates if c not in cache and c not in attempted]
-        refresh=[c for c in candidates if c in cache and
+        fresh=[c for c in candidates if c not in attempted and
+               (c not in cache or
+                (c not in hist and not cache[c].get("financeUpdated")))]
+        refresh=[c for c in candidates if c not in attempted and c in cache and
                  (c not in hist or not cache[c].get("financeUpdated") or
-                  (TODAY-date.fromisoformat(str(cache[c].get("date","1970-01-01")))).days>5)]
+                  (TODAY-date.fromisoformat(str(cache[c].get("date") or "1970-01-01"))).days>5)]
         # Never spend the whole daily budget repeatedly on the same initial 64.
         refresh.sort(key=lambda c:(0 if cache[c].get("score") is not None else 1,
                                    cache[c].get("financeUpdated",""),c))
