@@ -3,7 +3,7 @@ const $=x=>document.getElementById(x),repo="tang1273880952-dotcom/bond-timing";
 let market={mode:"pending",stocks:[],top:[],history:{},coverage:{}},user={positions:[],watch:[]};
 let mode="top",sort="balanced",query="";
 const addUrl="https://github.com/"+repo+"/issues/new?template=holding.yml";
-const fmt=(n,d=2)=>Number.isFinite(Number(n))?Number(n).toLocaleString("zh-CN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";
+const fmt=(n,d=2)=>n===null||n===undefined||n===""?"—":Number.isFinite(Number(n))?Number(n).toLocaleString("zh-CN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";
 const safe=x=>String(x??"").replace(/[&<>"']/g,k=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[k]));
 const normal=x=>/^\d{6}$/.test(String(x||"").trim())?String(x).trim():"";
 const num=x=>x===null||x===undefined||x===""?null:(Number.isFinite(Number(x))?Number(x):null);
