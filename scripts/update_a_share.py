@@ -12,7 +12,7 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import pandas as pd
-from a_share_value_model import MODEL_VERSION,financial,quick_pass,quick_rank,rotation_key,evaluate
+from a_share_value_model import MODEL_VERSION,financial,quick_pass,quick_rank,rotation_key,evaluate,annual_candidates,growth_candidates
 
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"a-share"/"data"
@@ -100,21 +100,33 @@ def rows(bs,method,code,year,quarter):
     if pub and pub>TODAY.isoformat():return None
     return record
 def finance(bs,stock,code,old):
-    # Profitability: last published FULL YEAR to keep ROE comparable across issuers
-    annual=rows(bs,"query_profit_data",code,TODAY.year-1,4)
-    cash=rows(bs,"query_cash_flow_data",code,TODAY.year-1,4)
-    balance=rows(bs,"query_balance_data",code,TODAY.year-1,4)
+    # Select the newest published FULL annual report, not blindly last calendar
+    # year: before spring disclosure last year's annual report may be absent.
+    annual=cash=balance=None
+    annual_year=None
+    for year in annual_candidates(TODAY):
+        a=rows(bs,"query_profit_data",code,year,4)
+        if not a or str(a.get("statDate") or "")!=f"{year}-12-31":
+            continue
+        try:
+            pub=date.fromisoformat(str(a.get("pubDate") or ""))
+            if not 0<=(TODAY-pub).days<=600:continue
+        except ValueError:
+            continue
+        c=rows(bs,"query_cash_flow_data",code,year,4)
+        b=rows(bs,"query_balance_data",code,year,4)
+        if c and b:
+            annual,cash,balance=a,c,b
+            annual_year=year
+            break
+    if annual_year is None:return
     latest_growth=None
     latest_report=None
-    for year,q in [(TODAY.year,3),(TODAY.year,2),(TODAY.year,1),(TODAY.year-1,4)]:
+    for year,q in growth_candidates(TODAY):
         r=rows(bs,"query_growth_data",code,year,q)
         if r:
             latest_growth=r;latest_report=r;break
-    if not annual or not cash or not balance or not latest_growth:
-        return
-    pub=annual.get("pubDate","")
-    if not pub or (TODAY-date.fromisoformat(pub)).days>600:
-        return
+    if not latest_growth:return
     roe=scale(val(annual.get("roeAvg")));growth=scale(val(latest_growth.get("YOYNI")))
     cfo=val(cash.get("CFOToNP"))
     raw_debt=val(balance.get("liabilityToAsset"))
@@ -131,13 +143,16 @@ def finance(bs,stock,code,old):
             print("Ambiguous liabilityToAsset units",code,raw_debt,"multiplier",equity_multiplier,flush=True)
             debt=None
     roes=[roe]
-    for year in (TODAY.year-2,TODAY.year-3):
+    roe_years=[annual_year]
+    for year in (annual_year-1,annual_year-2):
         y=rows(bs,"query_profit_data",code,year,4)
-        if y:
-            prev=scale(val(y.get("roeAvg")))
-            if prev is not None:roes.append(prev)
+        if not y or str(y.get("statDate") or "")!=f"{year}-12-31":break
+        prev=scale(val(y.get("roeAvg")))
+        if prev is None:break
+        roes.append(prev)
+        roe_years.append(year)
     stock.update(roe=roe,growth=growth,cfoRatio=cfo,debtRatio=debt,
-                 roeHistory=roes,financeModelVersion=MODEL_VERSION,
+                 roeHistory=roes,roeYears=roe_years,financeModelVersion=MODEL_VERSION,
                  reportDate=str(latest_report.get("statDate") or ""),pubDate=str(latest_report.get("pubDate") or ""),
                  financeUpdated=str(TODAY))
 def get_pb(bs,code,stock):

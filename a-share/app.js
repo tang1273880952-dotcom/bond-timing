@@ -174,7 +174,7 @@ function detailsHTML(code){
  '<div class="row"><span>PE（'+safe(s.peBasis||((market.stocks||[]).some(x=>x.code===code)?"TTM市盈率（深度数据）":q?.peBasis)||"口径未核验")+'）/ PB</span><b>'+fmt(s.pe)+' / '+fmt(s.pb)+'</b></div>'+
  '<div class="row"><span>质量 / 估值 / 成长 / 风险</span><b>'+["qualityScore","valuationScore","growthScore","riskScore"].map(k=>fmt(s[k],0)).join(" / ")+'</b></div>'+
  '<div class="row"><span>ROE（上个完整年度）</span><b>'+fmt(s.roe)+'%</b></div>'+
- '<div class="row"><span>近几年已核验ROE</span><b>'+((s.roeHistory||[]).length?(s.roeHistory||[]).map(v=>fmt(v,1)+"%").join(" / "):"待核验")+'</b></div>'+
+ '<div class="row"><span>近几年已核验ROE</span><b>'+((s.roeHistory||[]).length?(s.roeHistory||[]).map((v,i)=>((s.roeYears||[])[i]||"年度")+"："+fmt(v,1)+"%").join(" / "):"待核验")+'</b></div>'+
  '<div class="row"><span>净利润同比（报告期）</span><b>'+fmt(s.growth)+'%</b></div>'+
  '<div class="row"><span>经营现金流相关指标</span><b>'+fmt(s.cfoRatio)+'</b></div>'+
  '<div class="row"><span>财报截止日 / 发布日</span><b>'+safe(s.reportDate||"未取得")+' / '+safe(s.pubDate||"未取得")+'</b></div>'+

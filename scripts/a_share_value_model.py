@@ -8,6 +8,22 @@ PB_LIMIT=4.5
 PB_PCT_LIMIT=35
 FINANCE_CODES=set("""000001 000166 000686 000728 000776 000783 002142 002500 002673 002736 002797 002926 002939 300059 600000 600015 600016 600030 600036 600061 600109 600369 600837 600908 600919 600926 600958 600999 601009 601066 601077 601099 601128 601162 601166 601169 601198 601211 601229 601236 601288 601318 601319 601328 601336 601375 601377 601398 601456 601555 601577 601601 601628 601658 601665 601688 601696 601788 601818 601825 601838 601860 601878 601881 601901 601916 601939 601988 601990 601995 601998""".split())
 FINANCE_WORDS=("银行","证券","保险","信托","期货","金融控股","金融集团","财险","人寿","资产管理","农商行")
+def annual_candidates(today):
+    # At the start of a year, last year's audited annual report is normally
+    # unavailable. Keep the prior published annual report as a fallback.
+    return (today.year-1,today.year-2)
+
+def growth_candidates(today,limit=8):
+    # Report eligibility is checked again against each actual publication date.
+    ends=((3,31),(6,30),(9,30),(12,31))
+    periods=[]
+    for year in (today.year,today.year-1,today.year-2):
+        for quarter in (4,3,2,1):
+            month,day=ends[quarter-1]
+            if date(year,month,day)<today:
+                periods.append((year,quarter))
+    return periods[:limit]
+
 def financial(code,name="",industry=""):
     name=str(name or "");industry=str(industry or "")
     return (str(code) in FINANCE_CODES or any(w in name for w in FINANCE_WORDS)

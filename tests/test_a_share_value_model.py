@@ -1,7 +1,8 @@
 import unittest,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"scripts"))
-from a_share_value_model import evaluate,financial,quick_rank
+from a_share_value_model import evaluate,financial,quick_rank,annual_candidates,growth_candidates
+from datetime import date
 def stock():
     return dict(code="603345",name="安井食品",pe=17,pb=1.7,roe=14,growth=8,
                 cfoRatio=1.4,debtRatio=35,roeHistory=[12,13,14],financeModelVersion=2)
@@ -35,6 +36,13 @@ class TestValueModel(unittest.TestCase):
         self.assertFalse(evaluate(dated,{**h,"end":"2026-10-27"},q,today="2026-10-29")["eligible"])
         self.assertFalse(evaluate({**dated,"date":"2026-10-10"},{**h,"end":"2026-10-10"},q,today="2026-10-29")["eligible"])
         self.assertFalse(evaluate(dated,h,{**q,"date":"2026-10-19"},today="2026-10-29")["eligible"])
+    def test_cross_year_report_selection(self):
+        self.assertEqual(annual_candidates(date(2027,2,10)),(2026,2025))
+        p=growth_candidates(date(2027,2,10))
+        self.assertEqual(p[0],(2026,4))
+        self.assertIn((2026,3),p)
+        self.assertNotIn((2027,1),p)
+        self.assertEqual(growth_candidates(date(2026,10,29))[0],(2026,3))
     def test_priority(self):
         self.assertGreater(quick_rank({"pe":10,"pb":1}),quick_rank({"pe":40,"pb":5}))
 if __name__=="__main__":unittest.main()
