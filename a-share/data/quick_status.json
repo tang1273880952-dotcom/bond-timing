@@ -1,0 +1,13 @@
+{
+  "attemptAt": "2026-10-29T11:06:04+08:00",
+  "success": true,
+  "coverage": {
+    "universe": 5223,
+    "everQuoted": 5216,
+    "recentQuoted": 5216,
+    "preselected": 2131,
+    "fullSnapshot": true,
+    "source": "东方财富沪深分市场",
+    "batchLimit": 240
+  }
+}
