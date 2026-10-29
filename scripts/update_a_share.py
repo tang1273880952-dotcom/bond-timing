@@ -183,6 +183,23 @@ def compute():
     login=bs.login()
     if login.error_code!="0":raise RuntimeError("BaoStock login failed: "+login.error_msg)
     try:
+        # Stock names are needed even if Eastmoney's full-market snapshot fails.
+        basic_names={}
+        try:
+            basic=bs.query_stock_basic()
+            if basic.error_code=="0":
+                names=basic.get_data()
+                if "code" in names and "code_name" in names:
+                    for _,rec in names.iterrows():
+                        raw=str(rec["code"])
+                        if len(raw)>=9 and raw[:3] in ("sh.","sz."):
+                            basic_names[raw[3:]]=str(rec["code_name"]).strip()
+            print("BaoStock available code names",len(basic_names),flush=True)
+        except Exception as exc:
+            print("BaoStock stock name lookup unavailable",str(exc)[:180],flush=True)
+        for code,stock in cache.items():
+            if stock.get("name") in ("未同步","",None) and code in basic_names:
+                stock["name"]=basic_names[code]
         for code,data in spot.items():
             stock=cache.get(code,blank(code,data["name"]))
             stock.update(data)
@@ -206,6 +223,8 @@ def compute():
         now_fin=0
         for idx,code in enumerate(todo,1):
             s=cache.setdefault(code,blank(code))
+            if s.get("name") in ("未同步","",None) and code in basic_names:
+                s["name"]=basic_names[code]
             if not spot_success or s.get("price") is None:
                 quote=get_latest_bs(bs,code)
                 if quote:s.update(quote)
