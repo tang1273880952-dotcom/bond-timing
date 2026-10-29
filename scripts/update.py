@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import akshare as ak
 from history_chart import build_history, build_monthly_erp, official_csi500_erp, official_csi500_close, build_index_overlay, _clean
+from bse50 import official_daily as fetch_bse50_daily, build_bse50
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data"
@@ -233,6 +234,33 @@ def calculate():
         print("CSI500 actual index CLOSE unavailable; overlay omitted:",
               repr(exc), flush=True)
         history["series"]["csi500"].pop("indexClose", None)
+    # BSE50 is separate from the CSI500/China-bond allocation ranking.
+    # Real published 899050 PE only; never fill missing valuations with guesses.
+    bse_cache = OUT/"bse50_daily.csv"
+    try:
+        cached_bse = pd.read_csv(bse_cache) if bse_cache.exists() else None
+        if cached_bse is not None:
+            cached_bse["date"] = pd.to_datetime(cached_bse["date"],errors="coerce").dt.normalize()
+            if len(cached_bse)<450 or (
+                market_end-cached_bse.date.max()
+            ).days > 90:
+                cached_bse = None
+        if cached_bse is None:
+            bse_raw = fetch_bse50_daily(market_end)
+        else:
+            # Keep earlier authentic records, refresh the newest observations.
+            recent = fetch_bse50_daily(market_end)
+            bse_raw = pd.concat([cached_bse,recent],ignore_index=True)
+            bse_raw = bse_raw.sort_values("date").drop_duplicates("date",keep="last")
+        bse = build_bse50(bse_raw,y[["date","y10"]],market_end)
+        bse_raw.to_csv(bse_cache,index=False,float_format="%.6f")
+        print("BSE50 observation check",bse["valid"],len(bse.get("points",[])),
+              bse.get("reason",""),flush=True)
+    except Exception as exc:
+        print("BSE50 unavailable; no synthetic ERP:",repr(exc),flush=True)
+        bse={"valid":False,"code":"899050","name":"北证50",
+             "reason":"官方北证50数据暂时无法验证，本期不展示猜测估值。",
+             "source":"中证指数公司899050历史行情"}
     result = {
         "mode":"live",
         "dataDate":str(market_end.date()),
@@ -241,6 +269,7 @@ def calculate():
         "stockPBDataDate":str(latest_pb.date.date()),
         "generatedAt":now.isoformat(),
         "history":history,
+        "bse50":bse,
         "assets":[
           {"id":"csi500","name":"中证500","score":stockscore,"metrics":[
             ["股债风险溢价",f"{last.erp:.2f}%"],
