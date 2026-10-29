@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/update_a_share_fast.py'
+      - 'scripts/merge_a_share_quick.py'
       - '.github/workflows/ashare-fast.yml'
   schedule:
     - cron: '10 14,15 * * 1-5'
@@ -46,7 +47,10 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
           cp /tmp/ashare-quick-status.json a-share/data/quick_status.json
-          if [ -f /tmp/ashare-quick.json ]; then cp /tmp/ashare-quick.json a-share/data/quick.json; fi
+          if [ -f /tmp/ashare-quick.json ]; then
+            python scripts/merge_a_share_quick.py a-share/data/quick.json /tmp/ashare-quick.json /tmp/ashare-merged.json
+            cp /tmp/ashare-merged.json a-share/data/quick.json
+          fi
           git add a-share/data/quick_status.json
           if [ -f a-share/data/quick.json ]; then git add a-share/data/quick.json; fi
           if ! git diff --cached --quiet; then
