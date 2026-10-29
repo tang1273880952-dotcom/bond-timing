@@ -32,19 +32,26 @@ function render() {
   const d=latest, st=syncStatus;
   if(!d||d.mode!=='live'||!Array.isArray(d.assets)||d.assets.length!==3){
     $('stamp').textContent='尚无有效市场数据 · 等待首次云端同步';
-    $('cards').innerHTML='';return;
+    $('cards').innerHTML='';
+    $('pick').textContent='等待可靠行情';
+    $('reason').textContent='暂无经核验的完整资产数据，不计算跨资产优先级。';
+    $('allocTitle').textContent='等待有效数据';
+    $('allocation').textContent='';
+    $('details').innerHTML='';
+    return;
   }
-  const assets=[...d.assets].sort((a,b)=>b.score-a.score);
-  const top=assets[0];
+  // These stocks and Treasury-yield proxies use DIFFERENT scoring formulas.
+  // Never compare them with a single rank or imply that their scores are calibrated.
+  const assets=d.assets;
   $('stamp').textContent='市场日期 '+d.dataDate+' · '+(st&&st.success===false?'最近同步失败，使用上次有效数据':'云端估值已更新');
-  $('pick').textContent=top.score<55?'新增资金：等待 / 现金':'新增资金：关注'+top.name;
-  $('reason').textContent=top.score<55?'三类资产都未达到新增资金的估值门槛；这不等于必须卖掉已有仓位。':(top.score-assets[1].score>=15?'新增资金的估值性价比明显偏向'+top.name+'。':'新增资金可优先研究'+top.name+'，仍应比较风险和资产配置。');
-  $('cards').innerHTML=assets.map((a,i)=>{
+  $('pick').textContent='各资产独立估值观察';
+  $('reason').textContent='中证500按PE/PB与ERP评分，国债使用收益率及利差代理评分。三类得分未做跨资产校准，不能直接排名决定买哪个ETF。';
+  $('cards').innerHTML=assets.map(a=>{
     const held=Boolean(selected[a.id]);const tip=advice(a,held);
     const open=Boolean(expanded[a.id]);
     const metrics=(a.metrics||[]).map(m=>'<div class="card-metric"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('');
     return '<article class="card decision-card" data-card="'+a.id+'" tabindex="0" aria-label="'+safe(a.name)+'：点击展开或收起判断依据">'+
-    '<div class="asset-top"><h3>'+safe(a.name)+'</h3><span class="subrank">#'+(i+1)+'</span></div>'+
+    '<div class="asset-top"><h3>'+safe(a.name)+'</h3><span class="subrank">单独评估</span></div>'+
     '<div class="score">'+a.score+'<small>/100 · 买入估值分</small></div>'+
     '<div class="tag">'+grade(a.score)+'</div>'+
     '<div class="ownership" role="group" aria-label="'+safe(a.name)+'持仓状态"><button type="button" data-asset="'+a.id+'" data-held="false" class="'+(!held?'active':'')+'" aria-pressed="'+(!held)+'">未持有</button><button type="button" data-asset="'+a.id+'" data-held="true" class="'+(held?'active':'')+'" aria-pressed="'+held+'">已持有</button></div>'+
@@ -53,9 +60,9 @@ function render() {
     (open?'<div class="card-metrics"><div class="mini-heading">指标明细 · '+safe(d.dataDate)+'</div>'+metrics+'<p>仅基于估值与收益率，不含你的真实持仓成本、ETF溢折价或经过回测的卖点。</p></div>':'')+
     '</article>';}).join('');
   const eligible=assets.filter(a=>a.score>=55);
-  $('allocTitle').textContent=eligible.length===0?'当前估值没有明显新买优势':('新增资金可优先研究：'+eligible.map(a=>a.name).join('、'));
+  $('allocTitle').textContent=eligible.length===0?'当前暂无明显独立估值优势':('达到各自观察条件：'+eligible.map(a=>a.name).join('、'));
   $('bar').innerHTML='';
-  $('allocation').textContent=eligible.length===0?'暂缓新增，不等于需要卖出已有持仓。':'不同资产的评分未进行跨资产回测校准，因此暂不自动分配资金比例。';
+  $('allocation').textContent=eligible.length===0?'暂缓新增，不等于需要卖出已有持仓。':'这里仅列出达到各自参考阈值的资产，不代表按分数排序，更不代表新资金的推荐比例。';
   $('details').innerHTML=assets.map(a=>'<h4>'+safe(a.name)+'</h4>'+(a.metrics||[]).map(m=>'<div class="item"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('')).join('');
 }
 $('cards').addEventListener('click',event=>{
