@@ -48,6 +48,7 @@ def preliminary(r):
     pe=numeric(r.get("pe"))
     pb=numeric(r.get("pb"))
     if "ST" in name.upper():return "风险警示"
+    if financial(r.get("code"),name):return "金融行业待独立估值"
     if pe is None or pb is None or pe<=0 or pb<=0:return "暂不入围"
     if pe>45 or pb>6:return "估值初筛未通过"
     if pe<1 or pb<.15:return "异常估值待核实"
@@ -78,6 +79,7 @@ def snapshot_em():
             print("Exchange bulk quote unavailable",label,str(exc)[:180],flush=True)
     if len(partial)==2:
         import pandas as pd
+from a_share_value_model import financial
         return parse_em(pd.concat(partial,ignore_index=True)),"东方财富沪深分市场"
     raise ValueError("No verified exchange-wide valuation snapshot")
 
