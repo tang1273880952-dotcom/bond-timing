@@ -8,6 +8,7 @@ import json
 import os
 import re
 import traceback
+from a_share_value_model import financial
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -79,7 +80,6 @@ def snapshot_em():
             print("Exchange bulk quote unavailable",label,str(exc)[:180],flush=True)
     if len(partial)==2:
         import pandas as pd
-from a_share_value_model import financial
         return parse_em(pd.concat(partial,ignore_index=True)),"东方财富沪深分市场"
     raise ValueError("No verified exchange-wide valuation snapshot")
 
