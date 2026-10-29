@@ -16,7 +16,11 @@ def clean(frame, key):
     out["date"] = pd.to_datetime(out["date"], errors="coerce").dt.normalize()
     out[key] = pd.to_numeric(out[key], errors="coerce")
     out = out.dropna(subset=["date", key])
+    if out.empty:
+        return out.reset_index(drop=True)
     out = out[out[key].map(math.isfinite)]
+    if out.empty:
+        return out.reset_index(drop=True)
     return out.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
 
 
