@@ -75,11 +75,13 @@
     const nearMedian=pct>=40&&pct<=60;
     const stateName=nearMedian?'历史中位附近':zone.name;
     const explanation=nearMedian?'目前ERP接近所选区间的历史中位，属于相对估值正常区间，不能认定明显高估或低估。':zone.text;
+    const isMonthlyBand=p.basis==='月度真实观测';
     el('history-frequency').textContent=(weekly?'真实ERP周线':'真实ERP月线')+
-      ' · '+state.years+'年滚动估值带每月更新 · 各历史时点不使用未来数据';
+      ' · '+state.years+'年滚动估值带按'+(isMonthlyBand?'月度':'日度')+
+      '样本统计、每月更新 · 历史参考不使用未来数据';
     el('history-current').innerHTML=
       '<div class="history-metric"><span>当前ERP</span><strong>'+fmt(d.latest)+'</strong></div>'+
-      '<div class="history-metric"><span>近'+state.years+'年历史分位</span><strong>'+fmt(pct,1)+'</strong></div>'+
+      '<div class="history-metric"><span>近'+state.years+'年历史分位'+(isMonthlyBand?'（月度）':'')+'</span><strong>'+fmt(pct,1)+'</strong></div>'+
       '<div class="history-state '+zone.tone+'"><span>当前估值判断</span><strong>'+stateName+'</strong></div>'+
       '<p class="history-asof">观测日期：'+d.date+' · '+(weekly?'周度ERP曲线':'月度ERP曲线')+'</p>';
     el('history-description').textContent=explanation;
@@ -87,9 +89,10 @@
     const incomplete=Number.isFinite(bandStarts)&&bandStarts>cutoff.getTime()+60*864e5;
     el('history-note').textContent='五条彩色曲线：在每个历史月末，用此前'+state.years+
       '年ERP观测重新计算10% / 20% / 50% / 80% / 90%分位。本月按最新交易日更新。'+
-      ' 当前参考线使用'+p.sampleCount+'个'+(weekly?'日度':'月度')+'样本。'+
+      ' 当前参考线使用'+p.sampleCount+'个'+(isMonthlyBand?'月度':'日度')+'真实样本。'+
+      (isMonthlyBand?' 10年带为统一月度来源的长期回填，和蓝色官方周度ERP使用不同估值数据源；因此其当前ERP数值可能略有差异。':'')+
       '滚动分位线可能因旧数据离开窗口而出现拐点或跳变；为保证数据口径准确，未对分位数进行人为平滑。'+
-      (incomplete?' 较早时期缺少足够的真实日度历史，滚动参考带从'+p.bands[0][0]+'才开始绘制；空白区域不是0%。':'');
+      (incomplete?' 较早时期缺少完整'+state.years+'年估值历史，滚动参考带从'+p.bands[0][0]+'才开始绘制；空白区域不是0%。':'');
     el('history-legend').innerHTML=
       '<div class="legend-item"><span class="legend-line" style="--line:#3769D2;--dash:none"></span>蓝线 · ERP'+(weekly?'周度':'月度')+'真实走势</div>'+
       lines.map(l=>'<div class="legend-item"><span class="legend-line" style="--line:'+

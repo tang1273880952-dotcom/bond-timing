@@ -82,6 +82,8 @@ class TestHistoryChart(unittest.TestCase):
             monthly.date >= monthly.date.iloc[-1] - pd.DateOffset(years=10)
         ].erp.quantile(.8)), 4))
         self.assertEqual(result["series"]["csi500"]["periods"]["3"]["basis"], "日度真实观测")
+        self.assertEqual(p10["bands"][0][0][:7], "2017-01")
+        self.assertEqual(p10["referenceERP"], round(float(monthly.erp.iloc[-1]), 4))
 
     def test_monthly_pe_matches_only_past_yield(self):
         dates = pd.date_range("2007-01-31", periods=239, freq="ME")
