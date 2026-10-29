@@ -242,50 +242,47 @@ def compute():
             stock=cache.get(code,blank(code,data["name"]))
             stock.update(data)
             cache[code]=stock
+        # Stage 2 consumes only the Stage 1 light-valuation preselection.
+        # No prior-conversation ticker list, no full ten-year downloads for every stock.
+        fastpath=OUT/"quick.json"
+        try:quick=json.loads(fastpath.read_text(encoding="utf8"))
+        except (OSError,ValueError):quick={}
+        rough=quick.get("quotes") or {}
         manual=sorted(c for c in manual if re.fullmatch(r"(00|30|60|68)\d{4}",c))
-        # Stable, shuffled order prevents a low-code / familiar-stock bias.
-        # The first lane reserves the user's holdings, not their conversation history.
-        candidates=[c for c in master if not ("ST" in master[c].upper())]
-        if spot_success:
-            # A full live snapshot allows a cheap valuation prefilter, without
-            # removing stocks from the visible exchange-wide universe.
-            candidates=[c for c in candidates if c in spot and
-                        val(spot[c].get("pe")) is not None and 0<spot[c]["pe"]<=40 and
-                        val(spot[c].get("pb")) is not None and 0<spot[c]["pb"]<=5]
-        candidates.sort(key=lambda c:hashlib.sha256(("ashare-v3:"+c).encode()).hexdigest())
-        recently_attempted=old.get("scanAttempts") or {}
-        attempted={c:d for c,d in recently_attempted.items() if isinstance(d,str) and
-                   (lambda x: (TODAY-x).days<=14 if x<=TODAY else False)(date.fromisoformat(d))}
-        # 75% of each batch broadens the scanned universe, leaving some room
-        # for maintaining previously validated data and user holdings.
-        limit=MAX_FINANCIAL if spot_success else MAX_FALLBACK
-        remaining=max(0,limit-len(manual))
-        new_slots=max(0,int(remaining*.75))
-        fresh=[c for c in candidates if c not in attempted and
-               (c not in cache or
-                (c not in hist and not cache[c].get("financeUpdated")))]
-        refresh=[c for c in candidates if c not in attempted and c in cache and
-                 (c not in hist or not cache[c].get("financeUpdated") or
-                  (TODAY-date.fromisoformat(str(cache[c].get("date") or "1970-01-01"))).days>5)]
-        # Never spend the whole daily budget repeatedly on the same initial 64.
-        refresh.sort(key=lambda c:(0 if cache[c].get("score") is not None else 1,
-                                   cache[c].get("financeUpdated",""),c))
-        todo=list(dict.fromkeys(manual+fresh[:new_slots]+refresh))[:limit]
+        earliest=(TODAY-timedelta(days=20)).isoformat()
+        candidates=[c for c,q in rough.items()
+                    if c in master and q.get("stage")=="待财报复核"
+                    and q.get("date","")>=earliest]
+        # If first-stage data is not yet populated, maintain existing verified
+        # holdings and scores, but do not claim new broad-market discoveries.
+        attempted={c:d for c,d in (old.get("scanAttempts") or {}).items()
+                   if isinstance(d,str) and d<=str(TODAY)
+                   and (TODAY-date.fromisoformat(d)).days<=12}
+        candidates.sort(key=lambda c:hashlib.sha256(("deep-v4-"+c).encode()).hexdigest())
+        unseen=[c for c in candidates if c not in attempted
+                and (c not in cache or c not in hist)]
+        refresh=[c for c in candidates if c in cache and
+                 (c not in hist or
+                  not cache[c].get("financeUpdated") or
+                  (TODAY-date.fromisoformat(str(cache[c].get("financeUpdated") or "1970-01-01"))).days>=35)]
+        refresh.sort(key=lambda c:cache[c].get("financeUpdated") or "1970-01-01")
+        limit=MAX_FINANCIAL
+        todo=list(dict.fromkeys(manual+unseen[:max(0,limit-len(manual))]+refresh))
+        todo=todo[:limit]
         if len(todo)<limit:
-            more=[c for c in candidates if c not in todo and c not in attempted]
-            todo+=more[:limit-len(todo)]
-        # If full security-master access fails, only a known limited sample is
-        # eligible; no claims are made about coverage of all listed companies.
-        if not todo and not master:
-            todo=list(dict.fromkeys(manual+list(cache)))[:limit]
-        for code in todo:
-            attempted[code]=str(TODAY)
-            cache.setdefault(code,blank(code,master.get(code,"未同步")))
-        for code,stock in cache.items():
-            if code in master and stock.get("name") in ("未同步","",None):
-                stock["name"]=master[code]
-        print("Selection breadth: universe",len(master),"new",len(fresh[:new_slots]),
-              "held",len(manual),"selected",len(todo),flush=True)
+            maintain=[c for c in cache if c not in todo and c in hist]
+            maintain.sort(key=lambda c:cache[c].get("financeUpdated") or "1970-01-01")
+            todo+=maintain[:limit-len(todo)]
+        if not todo and not quick:
+            todo=list(dict.fromkeys(manual))[:limit]
+        for c in todo:
+            attempted[c]=str(TODAY)
+            cache.setdefault(c,blank(c,master.get(c,"未同步")))
+        for c,v in cache.items():
+            if c in master and v.get("name") in ("未同步","",None):v["name"]=master[c]
+        print("Deep pipeline: first-stage eligible",len(candidates),
+              "new",len(unseen),"prioritized holdings",len(manual),
+              "selected",len(todo),flush=True)
         now_fin=0
         for idx,code in enumerate(todo,1):
             s=cache.setdefault(code,blank(code))
@@ -300,7 +297,12 @@ def compute():
             if need_fin:
                 try:finance(bs,s,code,old);now_fin+=1
                 except Exception as e:print("Financial partial failure",code,str(e)[:160],flush=True)
-            need_pb=code not in hist or (TODAY-date.fromisoformat(hist[code]["end"])).days>15
+            # Download long PB history only after published fundamental checks.
+            roe,growth,cfo,debt=(val(s.get(k)) for k in ("roe","growth","cfoRatio","debtRatio"))
+            quality_gate=(None not in (roe,growth,cfo,debt) and
+                          roe>=7 and growth>=-25 and cfo>=.65 and debt<=75)
+            need_pb=(code in manual or quality_gate) and (
+                code not in hist or (TODAY-date.fromisoformat(hist[code]["end"])).days>15)
             if need_pb:
                 try:
                     h=get_pb(bs,code,s)
@@ -331,11 +333,14 @@ def compute():
               "marketDate":max((s.get("date") for s in stocks if s.get("date")),default=None),
               "coverage":{"market":len(master) if master else None,
                           "scanned":effective_count,"qualityVerified":len(validated),"ranking":min(10,len(validated)),
-                          "fullQuoteSnapshot":spot_success,"batchSize":len(todo)},
+                          "fullQuoteSnapshot":spot_success,"batchSize":len(todo),
+                          "pipeline":"粗筛 → 财务复核 → PB历史估值",
+                          "coarseScanned":(quick.get("coverage") or {}).get("everQuoted",0),
+                          "coarseQualified":len(candidates)},
               "universe":master,"scanAttempts":attempted,
               "stocks":stocks,"top":[s["code"] for s in validated[:10]],
               "history":hist,
-              "method":"仅沪深A股；全市场行情初筛与轮动核验财务；综合分=估值35%+质量35%+增长20%+风险10%。金融行业等待专用模型；没有报告或PB历史时不生成综合评分。","sources":["AkShare Eastmoney A-share spot","BaoStock financial statements","BaoStock historical daily peTTM/pbMRQ"]}
+              "method":"两阶段筛选：全市场最新PE/PB初筛；深度候选财务质量复核通过后下载PB历史；综合分=估值35%+质量35%+增长20%+风险10%。仅已核验样本排名，非全市场排名。","sources":["AkShare Eastmoney A-share spot","BaoStock financial statements","BaoStock historical daily peTTM/pbMRQ"]}
         FILE.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf8")
         print("VALIDATED",len(validated),"quotes",effective_count,"universe",len(master),"top",data["top"],flush=True)
         return data
