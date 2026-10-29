@@ -5,8 +5,11 @@ on:
     paths-ignore:
       - 'a-share/**'
       - 'scripts/update_a_share.py'
+      - 'scripts/update_a_share_fast.py'
+      - 'scripts/merge_a_share_quick.py'
       - 'scripts/apply_holding.py'
       - '.github/workflows/ashare.yml'
+      - '.github/workflows/ashare-fast.yml'
       - '.github/workflows/portfolio.yml'
       - 'requirements-screener.txt'
   workflow_dispatch:
