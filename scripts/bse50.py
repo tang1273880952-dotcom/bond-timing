@@ -13,7 +13,10 @@ QUANTILES = (10, 20, 50, 80, 90)
 
 def clean(frame, key):
     out = frame[["date", key]].copy()
-    out["date"] = pd.to_datetime(out["date"], errors="coerce").dt.normalize()
+    # Pandas can read CSV timestamps as second or microsecond precision.
+    # merge_asof requires the SAME datetime unit for PE and bond yields.
+    out["date"] = (pd.to_datetime(out["date"], errors="coerce")
+                   .astype("datetime64[ns]").dt.normalize())
     out[key] = pd.to_numeric(out[key], errors="coerce")
     out = out.dropna(subset=["date", key])
     if out.empty:

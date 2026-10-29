@@ -34,6 +34,17 @@ class TestStar100(unittest.TestCase):
         )
         self.assertEqual(d["periods"]["3"]["p80"], early["periods"]["3"]["p80"])
 
+    def test_mixed_datetime_units_from_csv_cache(self):
+        # The real yield cache parsed dates at microsecond precision while
+        # per-index CSV price cache used seconds: both must align safely.
+        daily = self.daily.copy()
+        yields = self.y.copy()
+        daily["date"] = daily["date"].astype("datetime64[s]")
+        yields["date"] = yields["date"].astype("datetime64[us]")
+        result = build_star100(daily, yields, "2026-10-28")
+        self.assertTrue(result["valid"])
+        self.assertIn("3", result["periods"])
+
     def test_no_fake_pe_when_missing(self):
         data = self.daily.copy()
         data["pe"] = float("nan")
