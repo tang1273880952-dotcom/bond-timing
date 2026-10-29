@@ -47,3 +47,42 @@
 .history-hover{font-size:12px;color:#416ac1;min-height:18px;margin-top:4px}
 .history-note{font-size:12px;color:#6e7e97;line-height:1.7;margin:8px 0 0}
 @media(max-width:650px){.history-toolbar{align-items:flex-start}.history-switch button{font-size:11px;padding:8px 9px}.history-summary{font-size:14px}}
+
+/* V2: single CSI 500 weekly ERP chart, five anchored reference levels. */
+.history-intro{font-size:13px;line-height:1.8;color:#60738f;margin:2px 0 15px}
+.history-current{background:#f5f8fd;border:1px solid #e6edf8;border-radius:15px;padding:15px;display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:12px;align-items:center}
+.history-metric,.history-state{display:flex;flex-direction:column;gap:6px}
+.history-metric span,.history-state span{color:#71819b;font-size:12px}
+.history-metric strong{font-size:30px;letter-spacing:-.035em;color:#243d67;font-variant-numeric:tabular-nums}
+.history-state strong{font-size:17px;color:#415b89}
+.history-state.positive strong{color:#187656}
+.history-state.warning strong{color:#b05c39}
+.history-asof{grid-column:1/-1;color:#8190a6;font-size:12px;margin:1px 0 0}
+.history-advice{font-size:13px;line-height:1.7;color:#526a89;margin:10px 0 18px}
+.history-toolbar strong{font-size:14px;color:#273e67}
+.history-frequency{font-size:12px;color:#71819b;margin:10px 0 4px}
+.history-svg{overflow:visible;touch-action:pan-y}
+.history-legend{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin:12px 0 6px}
+.legend-item{display:flex;align-items:center;gap:7px;font-size:12px;color:#5b6982}
+.legend-line{display:inline-block;width:23px;border-top:2px dashed var(--line)}
+.legend-line[style*="--dash:none"]{border-top-style:solid}
+.history-zone-title{margin:23px 0 12px;font-size:16px}
+.history-zone-head,.history-zone-row{display:grid;grid-template-columns:118px 150px 1fr;gap:12px;align-items:center}
+.history-zone-head{padding:8px 10px;color:#8591a3;font-size:11px;background:#f4f6fa;border-radius:8px}
+.history-zone-row{border-bottom:1px solid #e9eef5;padding:12px 10px;font-size:13px}
+.history-zone-row span{color:#667994;font-variant-numeric:tabular-nums}
+.history-zone-row strong{font-size:13px;color:#2c4367}
+.history-zone-row small{font-size:12px;color:#6b7991;line-height:1.5}
+.history-zone-row.selected{border-radius:10px;background:#eef5ff;border-bottom-color:transparent}
+.history-zone-row.selected strong{color:#2552a2}
+.history-explanation{margin-top:18px;background:#f5f8fc;border-radius:13px;padding:15px;color:#395374;font-size:13px;line-height:1.8}
+.history-explanation p{margin:7px 0 0}
+@media(max-width:680px){
+  .history-current{grid-template-columns:1fr 1fr;gap:12px}
+  .history-metric strong{font-size:25px}
+  .history-state{grid-column:1/-1}
+  .history-zone-head,.history-zone-row{grid-template-columns:83px minmax(98px,1fr)}
+  .history-zone-head span:last-child{display:none}
+  .history-zone-row small{grid-column:2;line-height:1.6}
+  .history-zone-row{gap:4px 8px;padding:11px 7px}
+}

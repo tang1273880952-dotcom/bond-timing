@@ -6,7 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import pandas as pd
 import akshare as ak
-from history_chart import build_history
+from history_chart import build_history, official_csi500_erp
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data"
@@ -107,6 +107,15 @@ def calculate():
     stockscore=round(.5*e+.3*(100-p)+.2*(100-b))
     bond10score=round(.6*b10+.25*dev10+.15*s10)
     bond30score=round(.6*b30+.25*s30+.15*dev30)
+    # Real weekly ERP from CSI Index official daily rolling PE, if available.
+    # Keep existing score methodology unchanged; never interpolate monthly PE to weeks.
+    try:
+        daily_erp = official_csi500_erp(y, market_end)
+        history = build_history(daily_erp, frequency="weekly")
+        print("Official CSI500 weekly ERP", len(history["series"]["csi500"]["points"]),flush=True)
+    except Exception as exc:
+        print("Official daily ERP not available; honest monthly fallback:", repr(exc),flush=True)
+        history = build_history(stock_win, frequency="monthly")
     result = {
         "mode":"live",
         "dataDate":str(market_end.date()),
@@ -114,7 +123,7 @@ def calculate():
         "stockPEDataDate":str(last.date.date()),
         "stockPBDataDate":str(latest_pb.date.date()),
         "generatedAt":now.isoformat(),
-        "history":build_history(stock_win,bond_win),
+        "history":history,
         "assets":[
           {"id":"csi500","name":"中证500","score":stockscore,"metrics":[
             ["股债风险溢价",f"{last.erp:.2f}%"],

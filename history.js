@@ -1,94 +1,162 @@
-/* Lightweight chart for historical ERP/sovereign yields; not ETF prices. */
+/* CSI 500 ERP historical valuation. Weekly only for verified official daily PE. */
 (() => {
-'use strict';
-const assetNames={csi500:'中证500 · 股债风险溢价',bond10:'中国10年国债收益率',bond30:'中国30年国债收益率'};
-const state={asset:'csi500',years:10};
-let stored=null;
-const el=id=>document.getElementById(id);
-const pct=(n,d=2)=>Number(n).toFixed(d)+'%';
-const ts=x=>Date.parse(String(x)+'T00:00:00Z');
-const root=el('history-panel');
-if(!root)return;
-root.addEventListener('click',e=>{
- const a=e.target.closest('[data-history-asset]'),y=e.target.closest('[data-history-years]');
- if(a&&Object.prototype.hasOwnProperty.call(assetNames,a.dataset.historyAsset))state.asset=a.dataset.historyAsset;
- else if(y&&[3,5,10].includes(Number(y.dataset.historyYears)))state.years=Number(y.dataset.historyYears);
- else return;
- render(stored);
-});
-function render(data){
- stored=data;
- root.querySelectorAll('[data-history-asset]').forEach(b=>{
-  const selected=b.dataset.historyAsset===state.asset;
-  b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));
- });
- root.querySelectorAll('[data-history-years]').forEach(b=>{
-  const selected=Number(b.dataset.historyYears)===state.years;
-  b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));
- });
- const chart=el('history-chart'),info=el('history-summary'),note=el('history-note');
- const d=data?.series?.[state.asset];
- if(!d||!Array.isArray(d.points)||d.points.length<12){
-  chart.innerHTML='<div class="history-empty">历史数据尚未生成，等待下一次估值更新。</div>';
-  info.textContent='历史数据待同步';
-  note.textContent='不会用模拟数据代替真实历史走势。';
-  return;
- }
- const end=ts(d.date),start=new Date(end);
- if(!Number.isFinite(end)){chart.innerHTML='<div class="history-empty">数据日期异常。</div>';return;}
- start.setUTCFullYear(start.getUTCFullYear()-state.years);
- const pts=d.points.map(row=>({date:String(row[0]),t:ts(row[0]),v:Number(row[1])}))
-  .filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.v)&&p.t>=start.getTime()&&p.t<=end).sort((a,b)=>a.t-b.t);
- const low=Number(d.p20),high=Number(d.p80);
- if(pts.length<6||!Number.isFinite(low)||!Number.isFinite(high)){
-  chart.innerHTML='<div class="history-empty">该时间范围的有效历史数据不足。</div>';
-  info.textContent='历史数据不足';return;
- }
- info.textContent=assetNames[state.asset]+'：'+pct(d.latest,state.asset==='csi500'?2:3)+' · '+d.date;
- note.textContent='虚线：近10年日度数据的20% / 80%分位（'+pct(low)+' / '+pct(high)+'）。指标越高通常越值得研究，但不等于ETF买点。';
- const W=850,H=254,L=54,R=20,T=19,B=35,xspan=W-L-R,yspan=H-T-B;
- const left=pts[0].t,right=pts[pts.length-1].t;
- const startV=Math.min(...pts.map(p=>p.v),low,high),endV=Math.max(...pts.map(p=>p.v),low,high),padding=Math.max(.06,(endV-startV)*.1);
- const min=startV-padding,max=endV+padding;
- const x=p=>L+(p.t-left)/Math.max(1,right-left)*xspan;
- const y=v=>T+(max-v)/Math.max(.001,max-min)*yspan;
- const path=pts.map((p,i)=>(i?'L':'M')+x(p).toFixed(2)+' '+y(p.v).toFixed(2)).join(' ');
- let svg='<svg class="history-svg" id="history-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+assetNames[state.asset]+'历史值">';
- for(let i=0;i<=4;i++){
-  const v=min+(max-min)*i/4,yp=y(v);
-  svg+='<line x1="'+L+'" y1="'+yp+'" x2="'+(W-R)+'" y2="'+yp+'" stroke="#e5ebf4"/><text x="'+(L-8)+'" y="'+(yp+4)+'" text-anchor="end" font-size="11" fill="#8292aa">'+v.toFixed(2)+'</text>';
- }
- for(const [val,color] of [[low,'#b98c5c'],[high,'#259673']])
-  svg+='<line x1="'+L+'" y1="'+y(val)+'" x2="'+(W-R)+'" y2="'+y(val)+'" stroke="'+color+'" stroke-width="1.3" stroke-dasharray="6 5"/>';
- svg+='<path d="'+path+'" fill="none" stroke="#3769d2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>';
- const last=pts[pts.length-1];
- svg+='<circle cx="'+x(last)+'" cy="'+y(last.v)+'" r="4.5" stroke="white" stroke-width="2" fill="#3769d2"/>';
- svg+='<line id="history-guide" x1="0" x2="0" y1="'+T+'" y2="'+(H-B)+'" stroke="#889cb9" stroke-dasharray="3 3" visibility="hidden"/>';
- svg+='<circle id="history-dot" cx="0" cy="0" r="5" fill="#3769d2" stroke="white" stroke-width="2" visibility="hidden"/>';
- svg+='<rect x="'+L+'" y="'+T+'" width="'+xspan+'" height="'+yspan+'" fill="transparent"/>';
- svg+='<text x="'+L+'" y="'+(H-8)+'" font-size="11" fill="#8191a7">'+pts[0].date.slice(0,7)+'</text>';
- svg+='<text x="'+(W-R)+'" y="'+(H-8)+'" text-anchor="end" font-size="11" fill="#8191a7">'+last.date.slice(0,7)+'</text></svg>';
- chart.innerHTML=svg;
- const svgNode=el('history-svg'),hover=el('history-hover');
- hover.textContent='悬停曲线查看历史日期和数值';
- svgNode.addEventListener('pointermove',e=>{
-  const rect=svgNode.getBoundingClientRect();
-  if(!rect.width)return;
-  const px=(e.clientX-rect.left)*W/rect.width;
-  if(px<L||px>W-R)return;
-  const target=left+(px-L)/xspan*(right-left);
-  let pick=pts[0],distance=Infinity;
-  for(const p of pts){const diff=Math.abs(p.t-target);if(diff<distance){distance=diff;pick=p;}}
-  const pos=x(pick);
-  const line=el('history-guide'),dot=el('history-dot');
-  line.setAttribute('x1',pos);line.setAttribute('x2',pos);line.setAttribute('visibility','visible');
-  dot.setAttribute('cx',pos);dot.setAttribute('cy',y(pick.v));dot.setAttribute('visibility','visible');
-  hover.textContent=pick.date+' · '+pct(pick.v,state.asset==='csi500'?2:3);
- });
- svgNode.addEventListener('pointerleave',()=>{
-  el('history-guide')?.setAttribute('visibility','hidden');
-  el('history-dot')?.setAttribute('visibility','hidden');
- });
-}
-window.renderHistory=render;
+  'use strict';
+  const root = document.getElementById('history-panel');
+  if (!root) return;
+  const el = id => document.getElementById(id);
+  const state = {years: 10};
+  const timestamp = date => Date.parse(String(date) + 'T00:00:00Z');
+  const fmt = (n, decimals=2) => Number(n).toFixed(decimals) + '%';
+  let saved = null;
+
+  const lines = [
+    {id:'p90', label:'90% · 极低估参考', color:'#147D52'},
+    {id:'p80', label:'80% · 低估参考', color:'#55AC81'},
+    {id:'p50', label:'50% · 历史中位', color:'#939BAA'},
+    {id:'p20', label:'20% · 偏高估参考', color:'#E3A364'},
+    {id:'p10', label:'10% · 高估参考', color:'#C66B43'}
+  ];
+  const zones = [
+    {low:90, name:'极度相对低估', text:'中证500相对国债的历史吸引力非常高，可以重点研究分批买入。', tone:'positive'},
+    {low:80, name:'相对低估', text:'中证500相对国债的估值吸引力较高，可以重点关注配置机会。', tone:'positive'},
+    {low:50, name:'中性偏低估', text:'相对估值有一定吸引力，但尚未达到80%分位的低估参考区。', tone:'neutral'},
+    {low:20, name:'中性偏高估', text:'当前ERP位于历史中低区域，相对估值优势不明显。', tone:'neutral'},
+    {low:10, name:'相对高估', text:'中证500相对国债的估值吸引力偏弱，新增买入应更加谨慎。', tone:'warning'},
+    {low:0, name:'极度相对高估', text:'中证500相对国债的历史吸引力很弱，需警惕估值风险。', tone:'warning'}
+  ];
+  const bandRows = [
+    ['90%—100%', '极度相对低估', '相对国债非常便宜，重点研究买入机会'],
+    ['80%—90%', '相对低估', '估值吸引力较高，关注分批配置'],
+    ['50%—80%', '中性偏低估', '相对估值有一定优势'],
+    ['20%—50%', '中性偏高估', '相对估值吸引力一般'],
+    ['10%—20%', '相对高估', '新增买入需要更谨慎'],
+    ['0%—10%', '极度相对高估', '相对国债吸引力很弱']
+  ];
+
+  root.addEventListener('click', event => {
+    const button = event.target.closest('[data-history-years]');
+    if (!button || ![3,5,10].includes(Number(button.dataset.historyYears))) return;
+    state.years = Number(button.dataset.historyYears);
+    render(saved);
+  });
+
+  const error = message => {
+    el('history-current').innerHTML = '<div class="history-empty">' + message + '</div>';
+    el('history-chart').innerHTML = '';
+    el('history-hover').textContent = '';
+    el('history-note').textContent = '没有可验证的数据时，不会生成模拟走势。';
+    el('history-zones').innerHTML = '';
+    el('history-legend').innerHTML = '';
+  };
+
+  function render(data) {
+    saved = data;
+    root.querySelectorAll('[data-history-years]').forEach(button => {
+      const chosen = Number(button.dataset.historyYears) === state.years;
+      button.classList.toggle('active', chosen);
+      button.setAttribute('aria-pressed', String(chosen));
+    });
+    const d = data?.series?.csi500;
+    if (!d || !Array.isArray(d.points) || d.points.length < 24 ||
+        !lines.every(l => Number.isFinite(Number(d[l.id]))) ||
+        !Number.isFinite(Number(d.percentile))) {
+      error('历史数据正在更新，暂不显示未经验证的估值曲线。');
+      return;
+    }
+    const end = timestamp(d.date);
+    if (!Number.isFinite(end)) { error('历史数据日期异常。');return; }
+    const cutoff = new Date(end);
+    cutoff.setUTCFullYear(cutoff.getUTCFullYear() - state.years);
+    const pts = d.points.map(p => ({
+      date: String(p[0]), t: timestamp(p[0]), v: Number(p[1])
+    })).filter(p =>
+      Number.isFinite(p.t) && Number.isFinite(p.v) &&
+      p.t >= cutoff.getTime() && p.t <= end
+    ).sort((a,b)=>a.t-b.t);
+    if (pts.length < 12) {error('该区间的实际数据不足。');return;}
+
+    const percentile = Number(d.percentile);
+    const zone = zones.find(z => percentile >= z.low) || zones[zones.length-1];
+    const position = zones.indexOf(zone);
+    const isWeekly = data.frequency === 'weekly';
+    el('history-frequency').textContent =
+      (isWeekly ? '真实周线 · 每周最后一个交易日' : '月线 · 日度历史PE尚不可用') +
+      ' · 固定近10年分位标准';
+    el('history-current').innerHTML =
+      '<div class="history-metric"><span>当前ERP</span><strong>' + fmt(d.latest) + '</strong></div>' +
+      '<div class="history-metric"><span>近10年历史分位</span><strong>' + fmt(percentile,1) + '</strong></div>' +
+      '<div class="history-state ' + zone.tone + '"><span>估值判断</span><strong>' + zone.name + '</strong></div>' +
+      '<p class="history-asof">观测日期：' + d.date + ' · ' + (isWeekly ? '真实周度走势' : '真实月度走势') + '</p>';
+    el('history-description').textContent = zone.text;
+    el('history-note').textContent = '五条横向虚线固定使用近10年' +
+      (isWeekly ? '真实日度' : '实际月度') + 'ERP观测计算，不随3/5/10年图表切换而变化。';
+    el('history-legend').innerHTML =
+      '<div class="legend-item"><span class="legend-line" style="--line:#3769D2;--dash:none"></span>蓝线 · ERP' + (isWeekly ? '周' : '月') + '度走势</div>' +
+      lines.map(l => '<div class="legend-item"><span class="legend-line" style="--line:' +
+        l.color + '"></span>' + l.label + '（' + fmt(d[l.id]) + '）</div>').join('');
+    el('history-zones').innerHTML = bandRows.map((r,i) =>
+      '<div class="history-zone-row ' + (i === position ? 'selected' : '') +
+      '"><span>' + r[0] + '</span><strong>' + r[1] + (i === position ? ' · 当前' : '') +
+      '</strong><small>' + r[2] + '</small></div>'
+    ).join('');
+
+    const W=860,H=292,L=53,R=23,T=22,B=38;
+    const plotW=W-L-R,plotH=H-T-B;
+    const refValues=lines.map(l => Number(d[l.id]));
+    const values=pts.map(p=>p.v).concat(refValues);
+    const minVal=Math.min(...values), maxVal=Math.max(...values);
+    const pad=Math.max(.10,(maxVal-minVal)*.10);
+    const lo=minVal-pad,hi=maxVal+pad;
+    const x=p=>L+(p.t-pts[0].t)/Math.max(1,pts[pts.length-1].t-pts[0].t)*plotW;
+    const y=v=>T+(hi-v)/(hi-lo)*plotH;
+    const path=pts.map((p,i)=>(i?'L':'M')+x(p).toFixed(2)+' '+y(p.v).toFixed(2)).join(' ');
+    let svg='<svg id="history-svg" class="history-svg" viewBox="0 0 '+W+' '+H+
+      '" role="img" aria-label="中证500 ERP历史估值和五条历史分位参考线">';
+    for(let i=0;i<=4;i++){
+      const value=lo+(hi-lo)*i/4,py=y(value);
+      svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+py+'" y2="'+py+
+        '" stroke="#e4eaf2"/><text x="'+(L-8)+'" y="'+(py+4)+'" font-size="11" fill="#8492a7" text-anchor="end">'+
+        value.toFixed(2)+'</text>';
+    }
+    for(const l of lines){
+      svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(d[l.id])+'" y2="'+y(d[l.id])+
+        '" stroke="'+l.color+'" stroke-width="1.5" stroke-dasharray="6 5"/>';
+    }
+    svg+='<path d="'+path+'" fill="none" stroke="#3769D2" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';
+    const last=pts[pts.length-1];
+    svg+='<circle cx="'+x(last)+'" cy="'+y(last.v)+'" r="5" fill="#3769D2" stroke="#fff" stroke-width="2"/>';
+    svg+='<line id="history-guide" x1="0" x2="0" y1="'+T+'" y2="'+(H-B)+'" stroke="#7287ad" stroke-dasharray="4 4" visibility="hidden"/>';
+    svg+='<circle id="history-dot" cx="0" cy="0" r="5" fill="#3769D2" stroke="#fff" stroke-width="2" visibility="hidden"/>';
+    svg+='<rect x="'+L+'" y="'+T+'" width="'+plotW+'" height="'+plotH+'" fill="transparent"/>';
+    svg+='<text x="'+L+'" y="'+(H-8)+'" font-size="11" fill="#8090a7">'+pts[0].date.slice(0,7)+'</text>';
+    svg+='<text x="'+(W-R)+'" y="'+(H-8)+'" text-anchor="end" font-size="11" fill="#8090a7">'+last.date.slice(0,7)+'</text></svg>';
+    el('history-chart').innerHTML=svg;
+    const graph=el('history-svg'),hover=el('history-hover');
+    hover.textContent='移动鼠标或点按曲线，查看历史日期和当时的ERP';
+    function show(event){
+      const box=graph.getBoundingClientRect();
+      if(!box.width)return;
+      const px=(event.clientX-box.left)*W/box.width;
+      if(px<L||px>W-R)return;
+      const t=pts[0].t+(px-L)/plotW*(last.t-pts[0].t);
+      let picked=pts[0],best=Infinity;
+      for(const p of pts){
+        const gap=Math.abs(p.t-t);
+        if(gap<best){best=gap;picked=p;}
+      }
+      const guide=el('history-guide'),dot=el('history-dot'),gx=x(picked);
+      guide.setAttribute('x1',gx);guide.setAttribute('x2',gx);
+      guide.setAttribute('visibility','visible');
+      dot.setAttribute('cx',gx);dot.setAttribute('cy',y(picked.v));
+      dot.setAttribute('visibility','visible');
+      hover.textContent=picked.date+' · ERP '+fmt(picked.v);
+    }
+    graph.addEventListener('pointermove',show);
+    graph.addEventListener('pointerdown',show);
+    graph.addEventListener('pointerleave',()=>{
+      el('history-guide')?.setAttribute('visibility','hidden');
+      el('history-dot')?.setAttribute('visibility','hidden');
+    });
+  }
+  window.renderHistory=render;
 })();
