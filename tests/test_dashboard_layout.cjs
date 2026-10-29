@@ -18,7 +18,7 @@ function node(){return {
   querySelector(){return null},querySelectorAll(){return []},focus(){}
 };}
 const document={getElementById(id){return nodes[id]||(nodes[id]=node());}};
-const ctx={document,Date,console,localStorage:{getItem(){return null},setItem(){}},
+const ctx={document,window:{},Date,console,localStorage:{getItem(){return null},setItem(){}},
   fetch:async url=>({ok:true,json:async()=>JSON.parse(
     fs.readFileSync(String(url).replace(/\?.*$/,''),'utf8'))})};
 vm.runInNewContext(fs.readFileSync('app.js','utf8'),ctx);
