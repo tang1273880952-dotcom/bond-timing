@@ -19,8 +19,10 @@ permissions:
   contents: write
   pages: write
   id-token: write
+# Dashboard refreshes should not wait on the 35-minute A-share scans.
+# Each workflow rebases its own data commits before pushing to main.
 concurrency:
-  group: bond-timing
+  group: bond-timing-dashboard
   cancel-in-progress: false
 jobs:
   publish:
