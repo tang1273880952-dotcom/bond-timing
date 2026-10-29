@@ -115,12 +115,18 @@ def finance(bs,stock,code,old):
     roe=scale(val(annual.get("roeAvg")));growth=scale(val(latest_growth.get("YOYNI")))
     cfo=val(cash.get("CFOToNP"))
     raw_debt=val(balance.get("liabilityToAsset"))
+    equity_multiplier=val(balance.get("assetToEquity"))
     debt=scale(raw_debt)
-    # Source values unexpectedly below 1% can be due to percentage points
-    # being represented in 1/100 units. Do not silently score an ambiguous ratio.
+    # Cross-check published ratios against the independent equity multiplier
+    # rather than treating abnormally tiny liability percentages as accurate.
     if debt is not None and debt<1:
-        print("Ambiguous liabilityToAsset units",code,raw_debt, "scaled",debt,flush=True)
-        debt=None
+        via_multiplier=(100*(1-1/equity_multiplier)) if equity_multiplier and 1<=equity_multiplier<50 else None
+        if via_multiplier is not None and 0<=via_multiplier<100:
+            debt=round(via_multiplier,2)
+            print("Debt ratio recovered via assetToEquity",code,raw_debt,equity_multiplier,debt,flush=True)
+        else:
+            print("Ambiguous liabilityToAsset units",code,raw_debt,"multiplier",equity_multiplier,flush=True)
+            debt=None
     stock.update(roe=roe,growth=growth,cfoRatio=cfo,debtRatio=debt,
                  reportDate=str(latest_report.get("statDate") or ""),pubDate=str(latest_report.get("pubDate") or ""),
                  financeUpdated=str(TODAY))
