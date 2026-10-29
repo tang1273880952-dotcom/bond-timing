@@ -268,16 +268,20 @@ def compute():
         unseen.sort(key=lambda c:(-quick_rank(rough[c]),c))
         explore=sorted(unseen,key=rotation_key)
         refresh=[c for c in candidates if c in cache and
-                 (c not in hist or
+                 (cache[c].get("financeModelVersion")!=MODEL_VERSION or c not in hist or
                   not cache[c].get("financeUpdated") or
                   (TODAY-date.fromisoformat(str(cache[c].get("financeUpdated") or "1970-01-01"))).days>=35)]
         refresh.sort(key=lambda c:cache[c].get("financeUpdated") or "1970-01-01")
         limit=MAX_FINANCIAL
         slots=max(0,limit-len(manual))
-        explore_slots=max(1,slots//4) if slots else 0
-        selected=unseen[:max(0,slots-explore_slots)]
+        # Holders > financial refresh > value opportunities > discovery rotation.
+        refresh_slots=min(len(refresh),max(2,slots//5)) if slots else 0
+        fresh_slots=max(0,slots-refresh_slots)
+        explore_slots=max(1,fresh_slots//4) if fresh_slots else 0
+        selected=unseen[:max(0,fresh_slots-explore_slots)]
         selected+= [c for c in explore if c not in selected][:explore_slots]
-        todo=list(dict.fromkeys(manual+selected+refresh))
+        todo=list(dict.fromkeys(manual+refresh[:refresh_slots]+selected))
+        todo=todo[:limit]
         todo=todo[:limit]
         if len(todo)<limit:
             maintain=[c for c in cache if c not in todo and c in hist]
@@ -304,7 +308,7 @@ def compute():
             if industries.get(code):s["industry"]=industries[code]
             if s.get("price") is None:
                 continue
-            need_fin=(not s.get("financeUpdated") or (TODAY-date.fromisoformat(s["financeUpdated"])).days>20 or (val(s.get("debtRatio")) is not None and val(s.get("debtRatio"))<1))
+            need_fin=(s.get("financeModelVersion")!=MODEL_VERSION or not s.get("financeUpdated") or (TODAY-date.fromisoformat(s["financeUpdated"])).days>20 or (val(s.get("debtRatio")) is not None and val(s.get("debtRatio"))<1))
             if need_fin:
                 try:finance(bs,s,code,old);now_fin+=1
                 except Exception as e:print("Financial partial failure",code,str(e)[:160],flush=True)
