@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const code=fs.readFileSync('star50.js','utf8');
+const code=fs.readFileSync('star100.js','utf8');
 const dom={};
 function node(){return {innerHTML:'',textContent:'',classList:{toggle(){}},
 setAttribute(){},addEventListener(n,fn){this['on_'+n]=fn},
