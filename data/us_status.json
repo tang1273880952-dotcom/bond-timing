@@ -1,0 +1,5 @@
+{
+  "attemptAt": "2026-10-29T08:01:59.027428+08:00",
+  "success": false,
+  "error": "'Series' object has no attribute 'date'"
+}
