@@ -1,4 +1,4 @@
-"""US stock-bond valuation model. Monthly trailing P/E + daily Treasury yield.
+"""US stock-bond valuation model. Monthly trailing P/E and monthly Treasury yield.
 No fabricated scores: if a provider fails, keep the last verified snapshot.
 """
 import json
@@ -55,9 +55,7 @@ def get_pe():
         raise ValueError("P/E source insufficient points: " + str(len(records)))
     frame = pd.DataFrame(records, columns=["date", "pe", "estimated"])
     # Keep the most recent observation of each calendar month; exclude duplicate month entries.
-    frame = frame.sort_values("date").drop_duplicates("date").drop_duplicates(
-        frame["date"].dt.to_period("M") if False else "date", keep="last"
-    )
+    frame = frame.sort_values("date").drop_duplicates("date")
     frame["month"] = frame.date.dt.to_period("M")
     frame = frame.drop_duplicates("month", keep="last").drop(columns="month")
     return frame.sort_values("date").reset_index(drop=True)
@@ -159,7 +157,7 @@ def calculate():
         ["风险溢价10年分位", f"{erp_rank:.1f}%"],
         ["PE 10年分位", f"{pe_rank:.1f}%"],
         ["PE数据日期", str(latest.date.date()) + (" · 估算" if latest.estimated else "")],
-        ["美国10Y最新可用日期", str(latest_yield.date.date())]
+        ["美国10Y月度来源日期", str(latest_yield.yieldSourceDate.date())]
     ]
     if price is not None:
         metrics.extend([
@@ -173,7 +171,7 @@ def calculate():
         "name":"标普500",
         "score":int(score),
         "valuationDate":str(latest.date.date()),
-        "yieldDate":str(latest_yield.date.date()),
+        "yieldDate":str(latest_yield.yieldSourceDate.date()),
         "priceDate":price_date,
         "generatedAt":now.isoformat(),
         "estimatedPE":bool(latest.estimated),
