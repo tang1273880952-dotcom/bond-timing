@@ -33,13 +33,24 @@ jobs:
           git add a-share/data/holdings.json
           if ! git diff --cached --quiet; then
             git commit -m "data: update A-share cloud portfolio"
-            git pull --rebase origin main
-            git push origin HEAD:main
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then break; fi
+              if [ "$attempt" -eq 5 ]; then exit 1; fi
+              sleep 2
+            done
           fi
+      - name: Sync latest committed site files
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+      - name: Assemble minimal, validated Pages bundle
+        run: python scripts/build_pages.py "$RUNNER_TEMP/pages-site"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: '.'
+          path: ${{ runner.temp }}/pages-site
       - id: deployment
         uses: actions/deploy-pages@v4
       - name: Notify and close completed issue

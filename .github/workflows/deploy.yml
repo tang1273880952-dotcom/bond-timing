@@ -12,6 +12,10 @@ on:
       - '.github/workflows/ashare-fast.yml'
       - '.github/workflows/portfolio.yml'
       - 'requirements-screener.txt'
+      - 'scripts/update_us.py'
+      - '.github/workflows/update-us.yml'
+      - 'data/us_latest.json'
+      - 'data/us_status.json'
   workflow_dispatch:
   schedule:
     - cron: '0 14,15 * * 1-5'
@@ -88,9 +92,15 @@ jobs:
               sleep 2
             done
           fi
+      - name: Sync latest committed site files
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+      - name: Assemble minimal, validated Pages bundle
+        run: python scripts/build_pages.py "$RUNNER_TEMP/pages-site"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: '.'
+          path: ${{ runner.temp }}/pages-site
       - id: deployment
         uses: actions/deploy-pages@v4

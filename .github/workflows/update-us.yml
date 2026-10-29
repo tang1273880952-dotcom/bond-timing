@@ -10,12 +10,17 @@ on:
     - cron: '30 0,2 * * 2-6'
 permissions:
   contents: write
+  pages: write
+  id-token: write
 concurrency:
   group: us-market-data
   cancel-in-progress: false
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,6 +40,24 @@ jobs:
           if [ -f data/us_latest.json ]; then git add data/us_latest.json; fi
           if ! git diff --cached --quiet; then
             git commit -m "chore: refresh S&P 500 ERP"
-            git pull --rebase origin main
-            git push origin HEAD:main
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then break; fi
+              if [ "$attempt" -eq 5 ]; then exit 1; fi
+              sleep 2
+            done
           fi
+
+      - name: Sync latest committed site files
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+      - name: Assemble minimal, validated Pages bundle
+        run: python scripts/build_pages.py "$RUNNER_TEMP/pages-site"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/pages-site
+      - id: deployment
+        uses: actions/deploy-pages@v4
