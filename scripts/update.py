@@ -8,6 +8,7 @@ import pandas as pd
 import akshare as ak
 from history_chart import build_history, build_monthly_erp, official_csi500_erp, official_csi500_close, build_index_overlay, _clean
 from bse50 import official_daily as fetch_bse50_daily, build_bse50
+from star100 import official_daily as fetch_star100_daily, build_star100
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data"
@@ -265,6 +266,35 @@ def calculate():
         bse={"valid":False,"code":"899050","name":"北证50",
              "reason":"官方北证50数据暂时无法验证，本期不展示猜测估值。",
              "source":"中证指数公司899050历史行情"}
+    # STAR100 (000698) independently validated; never alter existing ranking.
+    # Publication-date history, NOT the backfilled 2019 index base.
+    star_cache = OUT/"star100_daily.csv"
+    try:
+        cached_star = pd.read_csv(star_cache) if star_cache.exists() else None
+        if cached_star is not None:
+            cached_star["date"]=pd.to_datetime(cached_star["date"],errors="coerce").dt.normalize()
+            if len(cached_star)<450 or (market_end-cached_star.date.max()).days>90:
+                cached_star=None
+        if cached_star is None:
+            star_raw=fetch_star100_daily(market_end)
+        else:
+            recent_start=max(
+                pd.Timestamp("2023-08-07"),
+                cached_star.date.max()-pd.Timedelta(days=35)
+            )
+            recent=fetch_star100_daily(market_end,start=recent_start)
+            star_raw=pd.concat([cached_star,recent],ignore_index=True)
+            star_raw=star_raw.sort_values("date").drop_duplicates("date",keep="last")
+        star100=build_star100(star_raw,y[["date","y10"]],market_end)
+        star_raw.to_csv(star_cache,index=False,float_format="%.6f")
+        print("STAR100 verification",star100["valid"],
+              len(star100.get("points",[])),star100.get("reason",""),flush=True)
+    except Exception as exc:
+        print("STAR100 official data unavailable; no synthetic ERP:",
+              repr(exc),flush=True)
+        star100={"valid":False,"code":"000698","name":"科创100",
+                 "reason":"科创100官方滚动PE或行情暂时无法验证，不展示推测估值。",
+                 "source":"中证指数公司000698历史行情"}
     result = {
         "mode":"live",
         "dataDate":str(market_end.date()),
@@ -274,6 +304,7 @@ def calculate():
         "generatedAt":now.isoformat(),
         "history":history,
         "bse50":bse,
+        "star100":star100,
         "assets":[
           {"id":"csi500","name":"中证500","score":stockscore,"metrics":[
             ["股债风险溢价",f"{last.erp:.2f}%"],
