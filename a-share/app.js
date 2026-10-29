@@ -1,13 +1,13 @@
 "use strict";
 const $=x=>document.getElementById(x),repo="tang1273880952-dotcom/bond-timing";
-let market={mode:"pending",stocks:[],top:[],history:{},coverage:{}},user={positions:[],watch:[]};
+let market={mode:"pending",stocks:[],top:[],history:{},coverage:{}},user={positions:[],watch:[]},quick={quotes:{},coverage:{},mode:"pending"};
 let mode="top",sort="balanced",query="";
 const addUrl="https://github.com/"+repo+"/issues/new?template=holding.yml";
 const fmt=(n,d=2)=>n===null||n===undefined||n===""?"—":Number.isFinite(Number(n))?Number(n).toLocaleString("zh-CN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";
 const safe=x=>String(x??"").replace(/[&<>"']/g,k=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[k]));
 const normal=x=>/^\d{6}$/.test(String(x||"").trim())?String(x).trim():"";
 const num=x=>x===null||x===undefined||x===""?null:(Number.isFinite(Number(x))?Number(x):null);
-const asset=code=>(market.stocks||[]).find(s=>s.code===code)||{code,name:"未同步的股票",score:null};
+const asset=code=>(market.stocks||[]).find(s=>s.code===code)||((quick.quotes||{})[code]?{...(quick.quotes||{})[code],score:null,pbPct:null,name:(market.universe||{})[code]||(quick.quotes||{})[code].name}:{code,name:(market.universe||{})[code]||"未同步的股票",score:null});
 function qualityWord(s){
  if(s.score===null||s.score===undefined)return {label:"数据不足 · 待复核",tone:"warn"};
  if(s.flag)return {label:"风险复核 · 暂不入选",tone:"warn"};
@@ -51,14 +51,29 @@ function topList(){
 }
 function renderTop(){
  const c=market.coverage||{};let ranked=topList();
+ const quickCoverage=quick.coverage||{};
+ $("stage-universe").textContent=fmt(quickCoverage.universe||c.market,0);
+ $("stage-quick").textContent=fmt(quickCoverage.everQuoted||0,0);
+ $("stage-quick-note").textContent="近12日 "+fmt(quickCoverage.recentQuoted||0,0)+"只";
+ $("stage-candidates").textContent=fmt(quickCoverage.preselected||0,0);
+ $("stage-scored").textContent=fmt(c.qualityVerified||0,0);
  $("count").textContent=ranked.length+"只样本精选";
- const universe=Number(c.market)||0,checked=Number(c.qualityVerified)||0,covered=Number(c.scanned)||0;
+ const universe=Number(quickCoverage.universe||c.market)||0,checked=Number(c.qualityVerified)||0,covered=Number(quickCoverage.everQuoted||c.scanned)||0;
  const percent=universe>0?(covered/universe*100).toFixed(1)+"%":"待确认";
  $("coverage").textContent=(universe>=2000?"全A股股票名录 "+universe+" 只；当前完成行情估值 "+covered+" 只（"+percent+"），完成财务和PB评分复核 "+checked+" 只。":"全市场股票名录尚未完整取得；当前仅有 "+covered+" 只行情估值，"+checked+" 只评分通过核验。")+
- " 本榜仅在已验证的有限样本中排名，不代表全A股最优10只。"+(c.fullQuoteSnapshot===false?" 免费全市场行情接口不可用，正在使用BaoStock轮动补充。":"");
+ " 本榜仅在财报、PB历史都已验证的有限样本中排名，不代表全A股最优10只。"+(quickCoverage.fullSnapshot===false?" 免费全市场行情接口暂不可用，已改用分批轻量回填。":"");
  appendCards("ranking",ranked,(s,i)=>"精选榜 #"+(i+1));
+ renderQuickPreview();
  let q=query.trim().toLowerCase();
  let res=q?(market.stocks||[]).filter(s=>s.code.includes(q)||String(s.name).toLowerCase().includes(q)).slice(0,25):[];
+ if(q&&res.length<25) {
+   const known=new Set(res.map(x=>x.code));
+   for(const x of Object.values(quick.quotes||{})){
+     if(res.length>=25)break;
+     if(known.has(x.code))continue;
+     if(x.code.includes(q)||String(x.name).toLowerCase().includes(q)) {res.push({...x,score:null,pbPct:null});known.add(x.code)}
+   }
+ }
  if(q&&res.length<25&&market.universe){
    const known=new Set(res.map(s=>s.code));
    for(const [code,name] of Object.entries(market.universe)){
@@ -73,6 +88,26 @@ function renderTop(){
  $("all-title").textContent=q?'找到 '+res.length+' 只候选（至多25只，未核验股票不显示评分）':'可输入股票代码/名称查询全A股名录；未核验股票不显示虚构分数。';
  $("all-results").textContent="";
  if(q){if(res.length)for(const s of res)$("all-results").appendChild(stockCard(s));else $("all-results").innerHTML='<div class="empty">尚未扫描到该股票。可先通过 GitHub 表单添加到持仓或观察池，下一轮会优先查询。</div>'}
+}
+
+function renderQuickPreview(){
+ const el=$("rough-results"),note=$("rough-note");
+ if(!el||!note)return;
+ el.textContent="";
+ const items=Object.values(quick.quotes||{}).filter(x=>x.stage==="待财报复核"&&num(x.pe)!==null&&num(x.pb)!==null);
+ // Not a quality ranking: sort only for an illustrative cheap-valuation watchlist.
+ items.sort((a,b)=>(num(a.pb)||99)-(num(b.pb)||99));
+ note.textContent="目前通过第一层最新估值粗筛 "+items.length+" 只，仅显示市净率较低的12只作为待复核样本。PE可能是动态或TTM口径，不能直接视为优质股、低估股或者买入信号。";
+ if(!items.length){el.innerHTML='<div class="empty">快速初筛数据尚未建立，或没有符合条件的样本。</div>';return;}
+ for(const a of items.slice(0,12)){
+   const card=document.createElement("article");card.className="stock";card.tabIndex=0;
+   card.innerHTML='<div class="stock-head"><div><div class="stock-title">'+safe(a.name)+' <span class="stock-code">'+safe(a.code)+'</span></div><div class="stock-code">估值初筛 · 财报待核验 · '+safe(a.date||"")+'</div></div><div class="score">待核验</div></div>'+
+   '<div class="metrics"><div class="metric"><span>收盘价</span><strong>'+fmt(a.price)+'</strong></div><div class="metric"><span>PE '+safe(a.peBasis||"")+'</span><strong>'+fmt(a.pe)+'</strong></div><div class="metric"><span>PB</span><strong>'+fmt(a.pb)+'倍</strong></div></div>'+
+   '<div class="msg">只通过PE/PB第一层筛选，不代表经营质量合格；等待ROE、现金流和PB历史复核。</div>';
+   card.onclick=()=>openDetail(a.code);
+   card.onkeydown=e=>{if(e.key==="Enter")openDetail(a.code)};
+   el.appendChild(card);
+ }
 }
 function renderPortfolio(){
  const arr=(user.positions||[]).map(p=>({p,s:asset(p.code)}));
@@ -143,10 +178,11 @@ function renderBand(){
 }
 async function load(){
  const t=Date.now(),results=await Promise.allSettled([
- fetch("./data/snapshot.json?t="+t,{cache:"no-store"}),fetch("./data/holdings.json?t="+t,{cache:"no-store"})
+ fetch("./data/snapshot.json?t="+t,{cache:"no-store"}),fetch("./data/holdings.json?t="+t,{cache:"no-store"}),
+ fetch("./data/quick.json?t="+t,{cache:"no-store"})
  ]);
- for(let i=0;i<results.length;i++){if(results[i].status!=="fulfilled"||!results[i].value.ok)continue;try{const d=await results[i].value.json();if(i===0&&Array.isArray(d.stocks))market=d;if(i===1&&Array.isArray(d.positions))user=d}catch(e){}}
- $("status").textContent="行情日期："+safe(market.marketDate||"待首次更新")+" · 云端更新时间："+safe(market.generatedAt||"未验证")+" · 持仓云端同步："+safe(user.updatedAt||"尚无记录");
+ for(let i=0;i<results.length;i++){if(results[i].status!=="fulfilled"||!results[i].value.ok)continue;try{const d=await results[i].value.json();if(i===0&&Array.isArray(d.stocks))market=d;if(i===1&&Array.isArray(d.positions))user=d;if(i===2&&d.quotes)quick=d}catch(e){}}
+ $("status").textContent="行情日期："+safe(market.marketDate||"待首次更新")+" · 快速扫描："+safe(quick.generatedAt||"未完成")+" · 深度评分："+safe(market.generatedAt||"未验证")+" · 持仓云端同步："+safe(user.updatedAt||"尚无记录");
  renderTop();renderPortfolio();renderWatch();if(mode==="band")renderBand();
 }
 function choose(tab){
