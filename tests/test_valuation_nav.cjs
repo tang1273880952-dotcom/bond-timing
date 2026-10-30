@@ -118,6 +118,11 @@ docListeners.click({target:{closest(q){return q.includes('data-industry-years')?
 assert.strictEqual(chips['399997'].dataset.tone,'watch');
 assert.ok(chips['399997'].title.includes('近10年'));
 const invalid=JSON.parse(fs.readFileSync('data/industry_latest.json','utf8'));
+for(const item of invalid.items){
+  if(['399975','399998','399986'].includes(item.code)){
+    item.metric='PE-TTM';delete item.pointMetric;
+  }
+}
 ctx.window.updateValuationJump(market,invalid);
 for(const code of ['399975','399998','399986']){
   assert.strictEqual(chips[code].textContent,'暂无','old PE data must not populate PB navigation');
