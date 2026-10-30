@@ -8,6 +8,7 @@ assert.ok(offsets.every(x=>x>=0),'required live chart containers');
 assert.ok(offsets.every((x,i)=>i===0||x>offsets[i-1]),'four-asset overview before three specified charts');
 assert.ok(html.includes('新增资金观察方向'));
 assert.ok(html.includes('历史估值图'));
+assert.ok(!html.includes('a-share/'),'dashboard must not link to removed stock screener');
 assert.ok(!html.includes('id="allocTitle"'),'remove duplicate allocation panel');
 assert.ok(css.includes('.tone-cheap')&&css.includes('.tone-rich'),'readable low/high valuation colors');
 const nodes={};

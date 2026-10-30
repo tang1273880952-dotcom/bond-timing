@@ -101,15 +101,6 @@
 .history-index-toggle:focus-visible{outline:2px solid #8450c6;outline-offset:2px}
 @media(max-width:650px){.history-actions{justify-content:space-between;width:100%}.history-index-toggle{font-size:11px;padding:8px 9px}}
 
-/* Clear two-way navigation between the stock-bond dashboard and A-share screener. */
-.site-switch{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:18px}
-.site-switch-current,.site-switch-link{min-height:39px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;border-radius:11px;font-size:13px;font-weight:750}
-.site-switch-current{background:#e4eafa;color:#355aa0;border:1px solid #dce6f9}
-.site-switch-link{background:#fff;color:#2857b5;border:1px solid #cbdaf6;text-decoration:none;transition:background .16s ease,box-shadow .16s ease,transform .16s ease}
-.site-switch-link:hover{background:#ebf2ff;box-shadow:0 4px 16px #2c5dbc1c;transform:translateY(-1px)}
-.site-switch-link:focus-visible{outline:3px solid #4478e8;outline-offset:2px}
-@media(max-width:480px){.site-switch{gap:7px}.site-switch-current,.site-switch-link{padding:10px 12px;font-size:12px}}
-
 /* BSE50 independent ERP research card: no cross-ranking with CSI500 or bonds. */
 .bse-panel{border:1px solid #dce6f3;background:linear-gradient(160deg,#fff,#fbfcff)}
 .bse-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}

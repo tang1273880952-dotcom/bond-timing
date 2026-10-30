@@ -3,15 +3,6 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - 'a-share/data/**'
-      - 'scripts/update_a_share.py'
-      - 'scripts/update_a_share_fast.py'
-      - 'scripts/merge_a_share_quick.py'
-      - 'scripts/apply_holding.py'
-      - '.github/workflows/ashare.yml'
-      - '.github/workflows/ashare-fast.yml'
-      - '.github/workflows/portfolio.yml'
-      - 'requirements-screener.txt'
       - 'scripts/update_us.py'
       - '.github/workflows/update-us.yml'
       - 'data/us_latest.json'
@@ -56,7 +47,6 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_build_pages.py'
           node --check app.js
-          node --check a-share/app.js
           node tests/test_dashboard_layout.cjs
       - name: Check chart percentile order and tooltips
         run: |

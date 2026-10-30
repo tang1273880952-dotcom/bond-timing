@@ -14,10 +14,6 @@ PUBLIC = (
     "history.js", "bse50.js", "star100.js",
     "data/latest.json", "data/status.json",
     "data/us_latest.json", "data/us_status.json",
-    "a-share/index.html", "a-share/styles.css", "a-share/app.js",
-    "a-share/data/holdings.json", "a-share/data/quick.json",
-    "a-share/data/quick_status.json", "a-share/data/snapshot.json",
-    "a-share/data/status.json",
 )
 
 

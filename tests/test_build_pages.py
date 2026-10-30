@@ -18,6 +18,7 @@ class BuildPagesTests(unittest.TestCase):
                 self.assertTrue((folder / item).is_file(), item)
             self.assertFalse((folder / "scripts" / "update.py").exists())
             self.assertFalse((folder / "data" / "csi500_erp_daily.csv").exists())
+            self.assertFalse((folder / "a-share").exists())
             self.assertFalse((folder / ".github").exists())
             self.assertFalse((folder / "tests").exists())
             self.assertFalse((folder / "site").exists())
