@@ -11,8 +11,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = (
     "index.html", "styles.css", "app.js",
-    "history.js", "bse50.js", "star100.js", "industry.js", "valuation-nav.js", "winda.js",
-    "data/winda_latest.json", "data/winda_status.json",
+    "history.js", "bse50.js", "star100.js", "industry.js", "valuation-nav.js",
     "data/industry_latest.json", "data/industry_status.json",
     "data/latest.json", "data/status.json",
     "data/us_latest.json", "data/us_status.json",

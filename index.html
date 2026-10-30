@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f7fb">
   <meta name="description" content="中证500、国债ETF收益率估值、标普500以及科创100、北证50 ERP历史分位走势。">
   <title>股债估值观察</title>
-  <link rel="stylesheet" href="styles.css?v=20261030-winda1">
+  <link rel="stylesheet" href="styles.css?v=20261030-nav4">
 </head>
 <body>
 <main class="dashboard" id="dashboard-top">
@@ -17,12 +17,7 @@
   <div><label id="money-title">新增资金观察方向</label><h2 id="pick">等待行情</h2><p id="reason">各类资产单独判断，不按评分机械排名</p></div>
   <div class="valuation-key" aria-label="估值颜色"><span class="key-cheap">● 相对低估</span><span class="key-neutral">● 中性</span><span class="key-rich">● 相对高估</span></div>
 </section>
-<section class="assets-overview" aria-label="五类资产估值">
-  <section class="panel overview-card winda-card tone-neutral" id="winda-section">
-    <div class="us-header"><h3>万得全A</h3><span class="asset-subtype">881001.WI · A股整体</span></div>
-    <div id="winda-stamp" class="muted">等待真实指数估值</div>
-    <div id="winda-card" class="us-content"><div class="us-empty">数据核验中</div></div>
-  </section>
+<section class="assets-overview" aria-label="四类资产估值">
   <div class="cards" id="cards"></div>
   <section class="panel us-panel overview-card" id="us-section">
 <div class="us-header"><h3>标普500</h3><span class="asset-subtype">美股 · 月度</span></div>
@@ -32,23 +27,6 @@
 </section>
 <section class="charts-section" aria-label="历史估值走势">
   <div class="charts-head"><h2>历史估值图</h2><p>ERP越高，通常代表相对国债更便宜 · 参考线每月更新</p></div>
-  <section class="panel history-panel" id="winda-panel">
-    <h3>万得全A <span class="chart-code">881001.WI · ERP · 股债比</span></h3>
-    <div id="winda-current" class="history-current"><div class="history-empty">等待真实万得全A估值</div></div>
-    <div class="history-toolbar">
-      <span class="chart-line-hint">真实PE-TTM与中国10年国债收益率 · 绿线相对低估</span>
-      <div class="history-switch" aria-label="万得全A估值时间范围">
-        <button type="button" data-winda-years="3" aria-pressed="false">3年</button>
-        <button type="button" data-winda-years="5" aria-pressed="false">5年</button>
-        <button type="button" data-winda-years="10" class="active" aria-pressed="true">10年</button>
-      </div>
-    </div>
-    <p class="history-frequency" id="winda-frequency">正在读取真实历史数据</p>
-    <div id="winda-chart"><div class="history-empty">没有可验证数据前不绘制模拟曲线</div></div>
-    <div id="winda-hover" class="history-hover" aria-live="off"></div>
-    <div id="winda-legend" class="history-legend"></div>
-    <p class="history-note" id="winda-note">ERP＝100÷万得全A指数PE-TTM－中国10年国债收益率；分位线按上月末历史样本计算。</p>
-  </section>
   <section class="panel history-panel" id="history-panel">
 <h3>中证500 <span class="chart-code">ERP · 股债比</span></h3>
 
@@ -212,10 +190,6 @@
 </main>
 <nav id="valuation-jump" class="valuation-jump" aria-label="固定历史估值快捷导航">
   <div class="valuation-jump-track" aria-label="横向滚动查看全部估值指数">
-    <a href="#winda-panel" class="valuation-jump-link" aria-label="跳转到万得全A历史估值图">
-      <span class="valuation-jump-name">万得全A</span>
-      <span data-valuation-status="winda" class="valuation-jump-status" data-tone="unknown">暂无</span>
-    </a>
     <a href="#history-panel" class="valuation-jump-link" aria-label="跳转到中证500历史估值图">
       <span class="valuation-jump-name">中证500</span>
       <span data-valuation-status="csi500" class="valuation-jump-status" data-tone="unknown">暂无</span>
@@ -258,11 +232,10 @@
     </a>
   </div>
 </nav>
-<script src="winda.js?v=20261030-winda1"></script>
 <script src="history.js?v=20261029-horizontal1"></script>
 <script src="bse50.js?v=20261029-bse1"></script>
 <script src="star100.js?v=20261029-star1"></script>
 <script src="industry.js?v=20261030-industry2"></script>
-<script src="valuation-nav.js?v=20261030-winda1"></script>
-<script src="app.js?v=20261030-winda1"></script>
+<script src="valuation-nav.js?v=20261030-nav4"></script>
+<script src="app.js?v=20261030-nav1"></script>
 </body></html>
