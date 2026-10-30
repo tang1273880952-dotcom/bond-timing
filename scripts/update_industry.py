@@ -122,7 +122,7 @@ def build_index(symbol,name,preferred,frame,today):
         reference=d[(d.date>=begin)&(d.date<=ref)]
         if (len(hist)<years*MIN_DAYS_PER_YEAR or
             len(reference)<years*MIN_DAYS_PER_YEAR-20 or
-            hist.date.iloc[0]>begin+pd.Timedelta(days=100)):
+            hist.date.iloc[0]>begin+pd.Timedelta(days=45)):
             continue
         values=reference.pe
         # Horizontal levels freeze at last complete calendar month.
