@@ -7,6 +7,7 @@ PB, and we preserve the last verified observations on provider outage.
 from __future__ import annotations
 import json
 import traceback
+import time
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -63,12 +64,16 @@ def fetch_official(symbol,start,end,session=None):
     params={"indexCode":symbol,
             "startDate":pd.Timestamp(start).strftime("%Y%m%d"),
             "endDate":pd.Timestamp(end).strftime("%Y%m%d")}
-    r=sess.get(ENDPOINT,params=params,headers={
-        "User-Agent":"Mozilla/5.0 (compatible; valuation-research/1.0)",
-        "Accept":"application/json, text/plain, */*",
-        "Referer":"https://www.csindex.com.cn/"
-    },timeout=38)
-    r.raise_for_status()
+    for attempt in range(3):
+        r=sess.get(ENDPOINT,params=params,headers={
+            "User-Agent":"Mozilla/5.0 (compatible; valuation-research/1.0)",
+            "Accept":"application/json, text/plain, */*",
+            "Referer":"https://www.csindex.com.cn/"
+        },timeout=38)
+        if r.status_code not in (403,429) or attempt==2:
+            r.raise_for_status()
+            break
+        time.sleep(4*(attempt+1))
     payload=r.json()
     result=parse_csi_payload(payload,symbol)
     if result.empty:
@@ -102,20 +107,19 @@ def load_history(symbol,today,fetcher=fetch_official):
         except (requests.RequestException,ValueError,KeyError,TypeError) as exc:
             failures.append(str(exc)[:180])
         cursor=stop+pd.Timedelta(days=1)
-    if failures and (prior is None or prior.empty):
-        # No unverified / partial bootstrap: the next run can retry all chunks.
-        raise ValueError("Official historical PE fetch incomplete: "+"; ".join(failures[:2]))
     all_frames=([prior] if prior is not None else [])+chunks
     if not all_frames:raise ValueError("No genuine rolling PE observations available")
     merged=normalize(pd.concat(all_frames,ignore_index=True))
     merged=merged[merged.date>=start].reset_index(drop=True)
     if merged.empty:raise ValueError("No recent PE observations")
+    # An incomplete download still contributes genuine official observations
+    # to a cache; a future attempt must complete the historical coverage.
+    if chunks:
+        merged.to_csv(p,index=False,float_format="%.7f")
+    if failures:
+        raise ValueError("Official historical PE fetch incomplete: "+"; ".join(failures[:2]))
     if (today_ts-merged.date.iloc[-1]).days>12:
         raise ValueError("Latest rolling PE is too old: "+str(merged.date.iloc[-1].date()))
-    # Do not overwrite verified cache if any request of this update failed;
-    # leave real older observations intact and try again on next run.
-    if not failures:
-        merged.to_csv(p,index=False,float_format="%.7f")
     return merged
 
 def build_index(symbol,name,preferred,frame,today):
@@ -167,11 +171,14 @@ def main():
         old={str(i.get("code")):i for i in old.get("items",[]) if i.get("valid") is True}
     except (OSError,ValueError,AttributeError,TypeError):pass
     items=[];problems={}
-    for code,name,preferred in SYMBOLS:
+    # Prioritize indices with no historical cache: official CSI may rate-limit.
+    order=sorted(SYMBOLS,key=lambda item:(CACHE/(item[0]+"_pe.csv")).exists())
+    results={}
+    for code,name,preferred in order:
         try:
             d=load_history(code,today)
             item=build_index(code,name,preferred,d,today)
-            items.append(item)
+            results[code]=item
             print("Industry PE ok",code,item["date"],list(item["periods"]),flush=True)
         except Exception as exc:
             print("Industry PE failed",code,repr(exc),flush=True)
@@ -179,10 +186,11 @@ def main():
             if code in old:
                 item=old[code]
                 item["note"]=(item.get("note","")+" · 当前刷新失败，显示上次数据").strip(" ·")
-                items.append(item)
+                results[code]=item
             else:
-                items.append({"code":code,"name":name,"valid":False,
-                    "metric":preferred,"reason":"暂未取得足够的真实历史估值数据"})
+                results[code]={"code":code,"name":name,"valid":False,
+                    "metric":preferred,"reason":"暂未取得足够的真实历史估值数据"}
+    items=[results[code] for code,_,_ in SYMBOLS]
     target.write_text(json.dumps({"mode":"industry-valuations-v1",
         "generatedAt":now.isoformat(),"items":items},ensure_ascii=False,separators=(",",":")),encoding="utf-8")
     status_path.write_text(json.dumps({"attemptAt":now.isoformat(),
