@@ -1,0 +1,55 @@
+{
+  "mode": "industry-valuations-v1",
+  "generatedAt": null,
+  "items": [
+    {
+      "code": "399975",
+      "name": "证券公司",
+      "metric": "PB",
+      "valid": false,
+      "reason": "等待首次真实历史估值数据更新"
+    },
+    {
+      "code": "399989",
+      "name": "中证医疗",
+      "metric": "PE-TTM",
+      "valid": false,
+      "reason": "等待首次真实历史估值数据更新"
+    },
+    {
+      "code": "399971",
+      "name": "中证传媒",
+      "metric": "PE-TTM",
+      "valid": false,
+      "reason": "等待首次真实历史估值数据更新"
+    },
+    {
+      "code": "399998",
+      "name": "中证煤炭",
+      "metric": "PB",
+      "valid": false,
+      "reason": "等待首次真实历史估值数据更新"
+    },
+    {
+      "code": "000807",
+      "name": "食品饮料",
+      "metric": "PE-TTM",
+      "valid": false,
+      "reason": "等待首次真实历史估值数据更新"
+    },
+    {
+      "code": "399997",
+      "name": "中证白酒",
+      "metric": "PE-TTM",
+      "valid": false,
+      "reason": "等待首次真实历史估值数据更新"
+    },
+    {
+      "code": "399986",
+      "name": "中证银行",
+      "metric": "PB",
+      "valid": false,
+      "reason": "等待首次真实历史估值数据更新"
+    }
+  ]
+}

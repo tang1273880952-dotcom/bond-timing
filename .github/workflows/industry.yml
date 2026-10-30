@@ -1,0 +1,57 @@
+name: Update seven industry index valuation histories
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/update_industry.py'
+      - '.github/workflows/industry.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '20 11 * * 1-5' # 19:20 Asia/Shanghai on trading weekdays
+permissions:
+  contents: write
+concurrency:
+  group: industry-index-data
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: python -m pip install -r requirements.txt
+      - name: Verify data transformations
+        run: python -m unittest discover -s tests -p 'test_industry_*.py'
+      - name: Fetch verified CSI PE-TTM history for seven indices
+        run: python scripts/update_industry.py
+      - name: Save latest valid industry valuations
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp data/industry_latest.json /tmp/industry_latest.json
+          cp data/industry_status.json /tmp/industry_status.json
+          mkdir -p /tmp/industry-cache
+          cp data/industry_cache/*.csv /tmp/industry-cache/ 2>/dev/null || true
+          git fetch origin main
+          git reset --hard origin/main
+          cp /tmp/industry_latest.json data/industry_latest.json
+          cp /tmp/industry_status.json data/industry_status.json
+          mkdir -p data/industry_cache
+          cp /tmp/industry-cache/*.csv data/industry_cache/ 2>/dev/null || true
+          git add data/industry_latest.json data/industry_status.json data/industry_cache/
+          if ! git diff --cached --quiet; then
+            git commit -m "data: refresh verified industry valuation histories"
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then break; fi
+              if [ "$attempt" -eq 5 ]; then exit 1; fi
+              sleep 2
+            done
+          fi

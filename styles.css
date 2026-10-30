@@ -232,3 +232,29 @@
   .charts-head h2{font-size:20px}
   .charts-section .history-legend,.charts-section .bse-legend,.charts-section .star-legend{gap:7px 10px}
 }
+
+
+/* Seven supplemental index-valuation charts; original dashboard styles unchanged. */
+.industry-panel .industry-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
+  margin:12px 0;padding:14px;background:#f7f9fc;border:1px solid #e8edf6;border-left:4px solid #95a3b5;border-radius:12px}
+.industry-panel .industry-summary.tone-cheap{border-left-color:#15835c}
+.industry-panel .industry-summary.tone-watch{border-left-color:#64af88}
+.industry-panel .industry-summary.tone-caution{border-left-color:#e1a462}
+.industry-panel .industry-summary.tone-rich{border-left-color:#c96d49}
+.industry-metric{display:flex;flex-direction:column;gap:6px;min-width:0}
+.industry-metric>span{font-size:11px;color:#8191a5}
+.industry-metric>strong{color:#2e4d70;font-size:24px;line-height:1.2}
+.industry-metric>strong small{font-size:11px;font-weight:500;color:#8091ab}
+.industry-summary.tone-cheap .industry-state{color:#137a54}
+.industry-summary.tone-rich .industry-state{color:#bd603c}
+.industry-summary.tone-caution .industry-state{color:#b67831}
+.industry-toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 6px}
+.industry-chart svg{display:block;width:100%;max-width:100%;height:auto;touch-action:pan-y}
+.industry-legend{display:flex;align-items:center;flex-wrap:wrap;gap:10px 15px;margin:9px 0}
+.industry-hover,.industry-note{font-size:11px;color:#71829b;line-height:1.6;margin:7px 0}
+.industry-empty{padding:50px 14px;text-align:center;color:#8190a5;font-size:13px}
+@media(max-width:520px){
+  .industry-panel .industry-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .industry-metric>strong{font-size:21px}
+  .industry-legend{gap:7px 11px}
+}

@@ -10,6 +10,7 @@ assert.ok(html.includes('新增资金观察方向'));
 assert.ok(html.includes('历史估值图'));
 assert.ok(!html.includes('a-share/'),'dashboard must not link to removed stock screener');
 assert.ok(!html.includes('id="allocTitle"'),'remove duplicate allocation panel');
+assert.ok(html.includes('data-industry-code="399986"'),'seven modules follow BSE50');
 assert.ok(css.includes('.tone-cheap')&&css.includes('.tone-rich'),'readable low/high valuation colors');
 const nodes={};
 function node(){return {

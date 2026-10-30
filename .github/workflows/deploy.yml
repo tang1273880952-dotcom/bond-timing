@@ -7,6 +7,7 @@ on:
       - '.github/workflows/update-us.yml'
       - 'data/us_latest.json'
       - 'data/us_status.json'
+      - 'data/industry_cache/**'
   workflow_dispatch:
   schedule:
     - cron: '0 14,15 * * 1-5'
@@ -14,7 +15,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
-# Dashboard refreshes should not wait on the 35-minute A-share scans.
+# Dashboard runs independently of industry-index history updates.
 # Each workflow rebases its own data commits before pushing to main.
 concurrency:
   group: bond-timing-dashboard
@@ -47,6 +48,8 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_build_pages.py'
           node --check app.js
+          node --check industry.js
+          node tests/test_industry_render.cjs
           node tests/test_dashboard_layout.cjs
       - name: Check chart percentile order and tooltips
         run: |

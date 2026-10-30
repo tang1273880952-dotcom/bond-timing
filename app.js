@@ -106,7 +106,8 @@ async function load() {
   const stamp=Date.now();
   const attempts=await Promise.allSettled([
     fetch('data/latest.json?'+stamp),fetch('data/status.json?'+stamp),
-    fetch('data/us_latest.json?'+stamp),fetch('data/us_status.json?'+stamp)
+    fetch('data/us_latest.json?'+stamp),fetch('data/us_status.json?'+stamp),
+    fetch('data/industry_latest.json?'+stamp)
   ]);
   async function get(i){
     if(attempts[i].status!=='fulfilled'||!attempts[i].value.ok)return null;
@@ -115,6 +116,7 @@ async function load() {
   latest=await get(0);syncStatus=await get(1);
   usLatest=await get(2);usStatus=await get(3);
   render();renderUS();if(window.renderHistory)window.renderHistory(latest&&latest.history);if(window.renderBSE50)window.renderBSE50(latest&&latest.bse50);if(window.renderSTAR100)window.renderSTAR100(latest&&latest.star100);
+  if(window.renderIndustries)window.renderIndustries(await get(4));
 }
 $('reload').onclick=load;
 load();
