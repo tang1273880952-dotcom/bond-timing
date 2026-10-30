@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f5f7fb">
-  <meta name="description" content="中证500、国债ETF收益率估值、标普500以及科创100、北证50 ERP历史分位走势。">
+  <meta name="description" content="中证500、国债ETF、标普500、黄金AISC成本参考及行业历史估值走势。">
   <title>股债估值观察</title>
-  <link rel="stylesheet" href="styles.css?v=20261030-health2">
+  <link rel="stylesheet" href="styles.css?v=20261030-gold1">
 </head>
 <body>
 <main class="dashboard" id="dashboard-top">
@@ -17,16 +17,21 @@
   <div><label id="money-title">新增资金观察方向</label><h2 id="pick">等待行情</h2><p id="reason">各类资产单独判断，不按评分机械排名</p></div>
   <div class="valuation-key" aria-label="估值颜色"><span class="key-cheap">● 相对低估</span><span class="key-neutral">● 中性</span><span class="key-rich">● 相对高估</span></div>
 </section>
-<section class="assets-overview" aria-label="四类资产估值">
+<section class="assets-overview" aria-label="五类资产估值与成本参考">
   <div class="cards" id="cards"></div>
   <section class="panel us-panel overview-card" id="us-section">
 <div class="us-header"><h3>标普500</h3><span class="asset-subtype">美股 · 月度</span></div>
 <div id="us-stamp" class="muted">加载中</div>
 <div id="us-card" class="us-content"><div class="us-empty">等待美股数据</div></div>
 </section>
+  <section class="panel gold-panel overview-card" id="gold-section">
+    <div class="us-header"><h3>黄金</h3><span class="asset-subtype">伦敦金 · 现货</span></div>
+    <div id="gold-stamp" class="muted">加载中</div>
+    <div id="gold-card" class="gold-content"><p class="us-empty">等待金价与公开成本</p></div>
+  </section>
 </section>
 <section class="charts-section" aria-label="历史估值走势">
-  <div class="charts-head"><h2>历史估值图</h2><p>ERP越高，通常代表相对国债更便宜 · 参考线每月更新</p></div>
+  <div class="charts-head"><h2>历史估值图</h2><p>股票看ERP或估值分位 · 黄金看AISC成本溢价</p></div>
   <section class="panel history-panel" id="history-panel">
 <h3>中证500 <span class="chart-code">ERP · 股债比</span></h3>
 
@@ -63,6 +68,28 @@
 <p class="bse-note" id="bse-note">蓝线是北证50股债风险溢价（左轴，%），淡紫线是北证50指数收盘点位（右轴，点）。水平分位线每月更新一次。</p>
 <details class="chart-help"><summary>数据说明</summary><p class="chart-help-text">北证50发布于2022年11月，历史不足5年。 ERP＝100÷滚动PE－中国10年国债收益率；分位线每月更新。指数点位不是ETF收益，估值分位不等于买卖信号。</p></details>
 </section>
+
+  <section class="panel gold-history-panel" id="gold-panel">
+    <h3>黄金 <span class="chart-code">AISC · 成本参考</span></h3>
+    <div id="gold-summary" class="bse-summary"><p class="history-empty">正在核对金价与公开成本</p></div>
+    <div class="gold-toolbar">
+      <div class="history-switch" aria-label="黄金图表口径">
+        <button type="button" data-gold-view="price" class="active" aria-pressed="true">价格带</button>
+        <button type="button" data-gold-view="ratio" aria-pressed="false">成本倍数</button>
+      </div>
+      <div class="history-switch" aria-label="黄金历史时间范围">
+        <button type="button" data-gold-years="1" aria-pressed="false">1年</button>
+        <button type="button" data-gold-years="3" aria-pressed="false">3年</button>
+        <button type="button" data-gold-years="5" class="active" aria-pressed="true">5年</button>
+        <button type="button" data-gold-years="all" aria-pressed="false">全部</button>
+      </div>
+    </div>
+    <div id="gold-chart" aria-live="polite"><p class="history-empty">等待真实黄金历史数据</p></div>
+    <div id="gold-hover" class="history-hover" aria-live="off"></div>
+    <div id="gold-legend" class="history-legend" aria-label="黄金五档AISC倍数参考"></div>
+    <p id="gold-note" class="bse-note"></p>
+    <details class="chart-help"><summary>成本参考说明</summary><p class="chart-help-text">1.3 / 1.5 / 2.2 / 2.7 / 3.0倍为自设参考，不是历史分位或公允价格。美元金价与全球行业平均AISC同为美元/盎司；成本取世界黄金协会公开报告，按公布次日生效，期间沿用上次已知成本。公开历史样本可能缺少更早披露，不应当作完整信息回测。AISC不是金价底线，金价还受实际利率、央行、汇率及投资需求影响。</p></details>
+  </section>
 
   <section class="panel industry-panel" id="industry-399975" data-industry-code="399975" data-metric="PB">
     <h3>证券公司 <span class="chart-code">399975 · 历史估值</span></h3>
@@ -202,6 +229,10 @@
       <span class="valuation-jump-name">北证50</span>
       <span data-valuation-status="bse50" class="valuation-jump-status" data-tone="unknown">暂无</span>
     </a>
+    <a href="#gold-panel" class="valuation-jump-link" aria-label="跳转到黄金AISC成本参考图">
+      <span class="valuation-jump-name">黄金</span>
+      <span data-valuation-status="gold" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
     <a href="#industry-399975" class="valuation-jump-link" aria-label="跳转到证券公司历史估值图">
       <span class="valuation-jump-name">证券公司</span>
       <span data-valuation-status="399975" class="valuation-jump-status" data-tone="unknown">暂无</span>
@@ -236,6 +267,7 @@
 <script src="bse50.js?v=20261029-bse1"></script>
 <script src="star100.js?v=20261029-star1"></script>
 <script src="industry.js?v=20261030-health2"></script>
-<script src="valuation-nav.js?v=20261030-health2"></script>
-<script src="app.js?v=20261030-health2"></script>
+<script src="gold.js?v=20261030-gold1"></script>
+<script src="valuation-nav.js?v=20261030-gold1"></script>
+<script src="app.js?v=20261030-gold1"></script>
 </body></html>

@@ -7,11 +7,12 @@
     {key:'csi500',target:'history-panel',kind:'erp',button:'data-history-years',fallback:10},
     {key:'star100',target:'star-panel',kind:'erp',button:'data-star-years',fallback:3},
     {key:'bse50',target:'bse-panel',kind:'erp',button:'data-bse-years',fallback:3},
+    {key:'gold',target:'gold-panel',kind:'cost',button:'data-gold-years',fallback:5},
     ...['399975','399989','399971','399998','000807','399997','399986']
       .map(code=>({key:code,target:'industry-'+code,kind:'pe',
         button:'data-industry-years',fallback:3}))
   ];
-  let current={market:null,industry:null,statuses:null};
+  let current={market:null,industry:null,statuses:null,gold:null};
   const pctValid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100;
   function selectedYears(chart){
     const active=document.querySelector(
@@ -52,6 +53,24 @@
     for(const chart of charts){
       const chip=document.querySelector('[data-valuation-status="'+chart.key+'"]');
       if(!chip)continue;
+      if(chart.kind==='cost'){
+        const gold=current.gold;
+        const valid=gold?.valid===true&&gold.quoteType==='spot'&&Number.isFinite(gold.ratio)&&gold.ratio>0;
+        const sync=current.statuses?.gold;
+        const health=typeof window.dataHealth==='function'&&current.statuses?
+          window.dataHealth(gold?.priceDate,sync):{ok:true};
+        if(!valid||!health.ok||gold?.costStale||sync?.costCheckSuccess===false){
+          chip.textContent=valid?'待更新':'暂无';chip.dataset.tone='unknown';
+          chip.title=valid?(health.label||'公开成本需核验'):'暂无可核验的黄金成本参考';
+        }else{
+          const tone=gold.classification?.tone;
+          chip.dataset.tone=['cheap','watch','neutral','caution','rich'].includes(tone)?tone:'neutral';
+          chip.textContent=gold.ratio.toFixed(2)+'× AISC';
+          chip.title='黄金成本溢价：'+(gold.classification?.label||'参考')+' · '+gold.priceDate+
+            ' · 公开AISC '+gold.costPeriod+'；非历史分位';
+        }
+        continue;
+      }
       const {period,date,valid,isPB}=lookup(chart);
       const p=period?.percentile;
       if(!valid||!pctValid(p)){
@@ -130,11 +149,11 @@
   });
   document.addEventListener('click',event=>{
     const range=event.target.closest(
-      '[data-history-years],[data-star-years],[data-bse-years],[data-industry-years]');
+      '[data-history-years],[data-star-years],[data-bse-years],[data-industry-years],[data-gold-years]');
     if(range)render();
   });
-  window.updateValuationJump=(market,industry,statuses)=>{
-    current={market,industry,statuses};
+  window.updateValuationJump=(market,industry,statuses,gold)=>{
+    current={market,industry,statuses,gold};
     render();
   };
   render();

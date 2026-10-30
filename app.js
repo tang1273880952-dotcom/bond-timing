@@ -133,7 +133,8 @@ async function load() {
     fetch('data/latest.json?'+stamp),fetch('data/status.json?'+stamp),
     fetch('data/us_latest.json?'+stamp),fetch('data/us_status.json?'+stamp),
     fetch('data/industry_latest.json?'+stamp),
-    fetch('data/industry_status.json?'+stamp)
+    fetch('data/industry_status.json?'+stamp),
+    fetch('data/gold_latest.json?'+stamp),fetch('data/gold_status.json?'+stamp)
   ]);
   async function get(i){
     if(attempts[i].status!=='fulfilled'||!attempts[i].value.ok)return null;
@@ -144,9 +145,11 @@ async function load() {
   render();renderUS();if(window.renderHistory)window.renderHistory(latest&&latest.history);if(window.renderBSE50)window.renderBSE50(latest&&latest.bse50);if(window.renderSTAR100)window.renderSTAR100(latest&&latest.star100);
   const industryData=await get(4);
   const industryStatus=await get(5);
+  const goldLatest=await get(6),goldStatus=await get(7);
+  if(window.renderGold)window.renderGold(goldLatest,goldStatus);
   if(window.renderIndustries)window.renderIndustries(industryData,industryStatus);
   if(window.updateValuationJump)window.updateValuationJump(latest,industryData,
-    {market:syncStatus,industry:industryStatus});
+    {market:syncStatus,industry:industryStatus,gold:goldStatus},goldLatest);
 }
 $('reload').onclick=load;
 load();

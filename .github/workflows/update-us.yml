@@ -13,7 +13,7 @@ permissions:
   pages: write
   id-token: write
 concurrency:
-  group: us-market-data
+  group: bond-timing-market-data
   cancel-in-progress: false
 jobs:
   refresh:
@@ -25,6 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           persist-credentials: true
       - uses: actions/setup-python@v5
         with:
@@ -33,14 +34,19 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Verify US model and source dates
         run: python -m unittest discover -s tests -p 'test_us_model.py'
+      - name: Verify publication-dated gold model
+        run: python -m unittest discover -s tests -p 'test_gold_model.py'
       - name: Calculate verified US market score
         run: python scripts/update_us.py
+      - name: Refresh London gold after the US session
+        run: python scripts/update_gold.py
       - name: Publish data files to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/us_status.json
           if [ -f data/us_latest.json ]; then git add data/us_latest.json; fi
+          git add data/gold_status.json data/gold_latest.json data/gold_aisc_public.json data/gold_price_daily.csv
           if ! git diff --cached --quiet; then
             git commit -m "chore: refresh S&P 500 ERP"
             for attempt in 1 2 3 4 5; do
@@ -75,4 +81,7 @@ jobs:
           if s.get("success") is not True:
               raise SystemExit("US market refresh failed: " + str(s.get("error","unknown")))
           print("US refresh verified")
+          gold=json.loads(Path("data/gold_status.json").read_text(encoding="utf-8"))
+          if gold.get("success") is not True:
+              raise SystemExit("Gold refresh failed: " + str(gold.get("error","unknown")))
           PY

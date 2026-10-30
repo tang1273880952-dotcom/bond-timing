@@ -10,6 +10,7 @@ import json
 import math
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 ROOT=Path(__file__).resolve().parents[1]
 DATA=ROOT/"data"
@@ -109,11 +110,54 @@ def audit_industries(payload):
             check(reference<parsed_date(item["date"]),
                   f"{code}: historical reference contains current incomplete month")
 
+def audit_gold(payload):
+    check(payload.get("mode")=="gold-aisc-v1" and payload.get("valid") is True,
+          "Gold snapshot is not a verified cost-reference model")
+    check(payload.get("quoteType")=="spot" and payload.get("priceSymbol")=="XAU" and
+          payload.get("unit")=="USD/troy oz","Gold price and AISC units/symbol do not match")
+    price=float(payload["price"]);cost=float(payload["aisc"]);ratio=float(payload["ratio"])
+    check(all(math.isfinite(v) and v>0 for v in (price,cost,ratio)),"Gold model contains invalid numbers")
+    check(abs(price/cost-ratio)<.0001,"Gold price / AISC ratio incorrect")
+    multiples=[1.3,1.5,2.2,2.7,3.0]
+    check(payload.get("multiples")==multiples,"Gold user-defined reference multiples changed")
+    check([b.get("multiple") for b in payload.get("bands",[])]==multiples,"Gold reference band missing")
+    for band in payload["bands"]:
+        check(abs(float(band["price"])-cost*band["multiple"])<=.011,"Gold price band arithmetic incorrect")
+    events=payload.get("costEvents",[])
+    check(bool(events),"Gold missing publication-dated AISC history")
+    previous=None
+    for event in events:
+        published=parsed_date(event["publishedDate"]);effective=parsed_date(event["effectiveDate"])
+        check(effective==published+timedelta(days=1),"AISC effective date must follow publication")
+        check(parsed_date(event["periodEnd"])<=published,"AISC published before its production quarter ended")
+        source=urlparse(event["source"])
+        check(source.scheme=="https" and source.hostname in ("www.gold.org","gold.org"),
+              "AISC source is not the original public WGC report")
+        if previous:
+            check(effective>parsed_date(previous["effectiveDate"]) and event["period"]>=previous["period"],
+                  "AISC cost chronology or production-quarter order is invalid")
+        previous=event
+    points=payload.get("points",[])
+    check(len(points)>=40 and points[-1][0]==payload["priceDate"],"Gold plotted price endpoint is inconsistent")
+    previous_date=None
+    for day,quote,aisc,multiple,period,published in points:
+        d=parsed_date(day)
+        check(previous_date is None or d>previous_date,"Gold weekly dates unordered")
+        available=[e for e in events if parsed_date(e["effectiveDate"])<=d]
+        check(bool(available),"Gold uses costs before their disclosure")
+        active=available[-1]
+        check(float(aisc)==float(active["aisc"]) and period==active["period"] and published==active["publishedDate"],
+              "Gold historical cost differs from its publication-dated source")
+        check(abs(float(quote)/float(aisc)-float(multiple))<.0001,"Gold historical ratio incorrect")
+        previous_date=d
+    check(abs(float(points[-1][1])-price)<.011,"Gold chart and card show different prices")
+
 def main():
     latest=read_json("latest.json")
     us=read_json("us_latest.json")
     industry=read_json("industry_latest.json")
-    for name in ("status.json","us_status.json","industry_status.json"):
+    gold=read_json("gold_latest.json")
+    for name in ("status.json","us_status.json","industry_status.json","gold_status.json"):
         read_json(name)
     check(latest.get("mode")=="live", "China market snapshot is invalid")
     assets=latest.get("assets",[])
@@ -154,9 +198,10 @@ def main():
         print(f"NOTE: CSI 500 overview ERP {score_erp:.2f}% vs index-official history ERP "
               f"{chart_erp:.2f}% (different PE providers)")
     audit_industries(industry)
+    audit_gold(gold)
     for name,payload in (("China",latest),("US",us),("Industry",industry)):
         dt=payload.get("generatedAt") or payload.get("generatedAt",None)
         print(f"OK {name}: {dt or latest.get('dataDate')} source snapshot checked")
-    print("PASS: 10 historical charts and 4 asset cards pass snapshot integrity audit")
+    print("PASS: 11 historical charts and 5 asset cards pass snapshot integrity audit")
 
 if __name__=="__main__":main()
