@@ -44,13 +44,18 @@ def parse_csi_payload(payload, symbol):
         raise ValueError("CSI index-perf response missing data array")
     records=[]
     for row in payload["data"]:
-        # Official CSI / AKShare schema: date, code, names, prices, ...,
-        # constituents, rolling PE; closing price index 9 MUST NOT be used.
-        if not isinstance(row,(list,tuple)) or len(row)<16:
-            continue
-        if str(row[1]).strip()!=symbol:
-            continue
-        records.append({"date":row[0],"pe":row[15]})
+        # The live CSI JSON API now emits dict records with "peg" for rolling
+        # P/E. AKShare's historical wrapper maps the same field to 滚动市盈率.
+        # Legacy list records also have rolling PE at position 15.
+        if isinstance(row,dict):
+            code=str(row.get("indexCode","")).strip().zfill(6)
+            if code!=symbol:
+                continue
+            records.append({"date":row.get("tradeDate"),"pe":row.get("peg")})
+        elif isinstance(row,(list,tuple)) and len(row)>=16:
+            if str(row[1]).strip().zfill(6)!=symbol:
+                continue
+            records.append({"date":row[0],"pe":row[15]})
     return normalize(pd.DataFrame(records,columns=["date","pe"]))
 
 def fetch_official(symbol,start,end,session=None):
