@@ -1,14 +1,10 @@
 {
-  "attemptAt": "2026-10-30T09:30:11.850833+08:00",
+  "attemptAt": "2026-10-30T09:32:05.251376+08:00",
   "success": false,
-  "usableCount": 0,
+  "usableCount": 4,
   "errors": {
-    "399975": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399975; Official CSI has no usable rolling PE for 399975",
-    "399989": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399989; Official CSI has no usable rolling PE for 399989",
-    "399971": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399971; Official CSI has no usable rolling PE for 399971",
-    "399998": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399998; Official CSI has no usable rolling PE for 399998",
-    "000807": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 000807; Official CSI has no usable rolling PE for 000807",
-    "399997": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399997; Official CSI has no usable rolling PE for 399997",
+    "000807": "Official historical PE fetch incomplete: 403 Client Error: Forbidden for url: https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=000807&startDate=20260930&endDate=20261030",
+    "399997": "Official historical PE fetch incomplete: 403 Client Error: Forbidden for url: https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=399997&startDate=20160930&endDate=20180929; 403 Client Error: Forbidden for url: https://www.csi",
     "399986": "Official historical PE fetch incomplete: 403 Client Error: Forbidden for url: https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=399986&startDate=20160930&endDate=20180929; 403 Client Error: Forbidden for url: https://www.csi"
   }
 }
