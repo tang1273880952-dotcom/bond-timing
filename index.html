@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f7fb">
   <meta name="description" content="中证500、国债ETF、标普500、黄金AISC成本参考及行业历史估值走势。">
   <title>股债估值观察</title>
-  <link rel="stylesheet" href="styles.css?v=20261030-gold1">
+  <link rel="stylesheet" href="styles.css?v=20261030-sp5001">
 </head>
 <body>
 <main class="dashboard" id="dashboard-top">
@@ -68,6 +68,26 @@
 <p class="bse-note" id="bse-note">蓝线是北证50股债风险溢价（左轴，%），淡紫线是北证50指数收盘点位（右轴，点）。水平分位线每月更新一次。</p>
 <details class="chart-help"><summary>数据说明</summary><p class="chart-help-text">北证50发布于2022年11月，历史不足5年。 ERP＝100÷滚动PE－中国10年国债收益率；分位线每月更新。指数点位不是ETF收益，估值分位不等于买卖信号。</p></details>
 </section>
+
+  <section class="panel history-panel" id="sp500-panel">
+    <h3>标普500 <span class="chart-code">ERP · 股债比</span></h3>
+    <div id="sp500-current" class="history-current"><div class="history-empty">正在核对美股历史估值</div></div>
+    <p id="sp500-description" class="history-advice"></p>
+    <div class="history-toolbar"><span class="chart-line-hint">绿色参考线＝相对低估　橙色＝相对高估</span><div class="history-actions">
+      <button id="sp500-index-toggle" class="history-index-toggle" type="button" data-sp500-index-toggle aria-pressed="true">隐藏指数走势</button>
+      <div class="history-switch" aria-label="标普500时间范围"><button type="button" data-sp500-years="3" aria-pressed="false">3年</button><button type="button" data-sp500-years="5" aria-pressed="false">5年</button><button type="button" data-sp500-years="10" class="active" aria-pressed="true">10年</button></div>
+    </div></div>
+    <p id="sp500-frequency" class="history-frequency">正在核对真实月度数据</p>
+    <div id="sp500-chart"><div class="history-empty">等待真实历史数据</div></div>
+    <div id="sp500-hover" class="history-hover" aria-live="off"></div>
+    <div id="sp500-legend" class="history-legend" aria-label="标普500估值图例"></div>
+    <p id="sp500-note" class="history-note"></p>
+    <details class="chart-help"><summary>分位说明与计算口径</summary>
+      <div class="history-zone-head"><span>历史分位</span><span>中文判断</span><span>简单理解</span></div>
+      <div id="sp500-zones" class="history-zones"></div>
+      <p class="chart-help-text">ERP＝100÷标普500滚动PE－美国10年国债收益率。PE与美债取Multpl真实月度历史，按来源日期向前配对；五条水平线按所选3/5/10年样本计算，每月更新，当前分位随最新ERP重算。历史月初日期是来源的月度标签，历史数据可能修订；最新估算PE会标明。紫线为月度指数点位，历史采用月均价。当前参考线不是历史逐点买卖信号。</p>
+    </details>
+  </section>
 
   <section class="panel gold-history-panel" id="gold-panel">
     <h3>黄金 <span class="chart-code">AISC · 成本参考</span></h3>
@@ -229,6 +249,10 @@
       <span class="valuation-jump-name">北证50</span>
       <span data-valuation-status="bse50" class="valuation-jump-status" data-tone="unknown">暂无</span>
     </a>
+    <a href="#sp500-panel" class="valuation-jump-link" aria-label="跳转到标普500股债比历史估值图">
+      <span class="valuation-jump-name">标普500</span>
+      <span data-valuation-status="sp500" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
     <a href="#gold-panel" class="valuation-jump-link" aria-label="跳转到黄金AISC成本参考图">
       <span class="valuation-jump-name">黄金</span>
       <span data-valuation-status="gold" class="valuation-jump-status" data-tone="unknown">暂无</span>
@@ -267,7 +291,8 @@
 <script src="bse50.js?v=20261029-bse1"></script>
 <script src="star100.js?v=20261029-star1"></script>
 <script src="industry.js?v=20261030-health2"></script>
+<script src="sp500.js?v=20261030-sp5001"></script>
 <script src="gold.js?v=20261030-gold1"></script>
-<script src="valuation-nav.js?v=20261030-gold1"></script>
-<script src="app.js?v=20261030-gold1"></script>
+<script src="valuation-nav.js?v=20261030-sp5001"></script>
+<script src="app.js?v=20261030-sp5001"></script>
 </body></html>

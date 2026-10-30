@@ -34,6 +34,11 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Verify US model and source dates
         run: python -m unittest discover -s tests -p 'test_us_model.py'
+      - name: Verify S&P 500 historical chart and navigation
+        run: |
+          node --check sp500.js
+          node tests/test_sp500_render.cjs
+          node tests/test_valuation_nav.cjs
       - name: Verify publication-dated gold model
         run: python -m unittest discover -s tests -p 'test_gold_model.py'
       - name: Calculate verified US market score

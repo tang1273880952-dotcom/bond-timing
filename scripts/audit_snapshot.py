@@ -110,6 +110,44 @@ def audit_industries(payload):
             check(reference<parsed_date(item["date"]),
                   f"{code}: historical reference contains current incomplete month")
 
+def audit_us_history(payload):
+    history=payload.get("history",{})
+    check(history.get("valid") is True and history.get("id")=="sp500" and
+          history.get("frequency")=="monthly","S&P 500 monthly ERP history missing")
+    end=parsed_date(history["date"])
+    check(end==parsed_date(payload["valuationDate"]),"US chart/card source dates differ")
+    check(history["yieldDate"]==payload["yieldDate"],"US chart/card Treasury dates differ")
+    check(history.get("estimatedPE")==payload["estimatedPE"],"US historical PE estimate flag differs")
+    points=history.get("points",[])
+    check(len(points)>=120 and points[-1][0]==history["date"],"US historical endpoint or coverage invalid")
+    months=set();previous=None
+    for day,erp,pe,yield10,yield_day,estimated in points:
+        observed=parsed_date(day);bond=parsed_date(yield_day)
+        check(previous is None or observed>previous,"US monthly dates unordered")
+        check(day[:7] not in months,"US chart must have one observation per month")
+        months.add(day[:7]);previous=observed
+        check(isinstance(estimated,bool) and all(math.isfinite(float(v)) for v in (erp,pe,yield10))
+              and pe>0,"US historical values or estimate flags invalid")
+        check(0<=(observed-bond).days<=42,"US Treasury matching uses future or stale observation")
+        check(abs(100/pe-yield10-erp)<.00001,"US historical ERP arithmetic incorrect")
+    check(abs(history["latest"]-points[-1][1])<.000001,"US historical latest ERP mismatch")
+    check(abs(float(str(payload["metrics"][2][1]).rstrip("%"))-history["latest"])<=.0051,
+          "US overview ERP differs from chart")
+    reference=end.replace(day=1)-timedelta(days=1)
+    check(set(history.get("periods",{}))=={"3","5","10"},"US historical horizons incomplete")
+    for years,p in history["periods"].items():
+        check(parsed_date(p["referenceDate"])==reference,"US bands include current incomplete month")
+        start=subtract_years(reference,int(years))
+        sample=[float(row[1]) for row in points if start<=parsed_date(row[0])<=reference]
+        check(len(sample)==p["sampleCount"] and len(sample)>=int(years)*10,"US reference sample count invalid")
+        check(parsed_date(p["from"])==start,"US reference range mismatch")
+        for q in (10,20,50,80,90):
+            check(abs(quantile(sample,q)-float(p[f"p{q}"]))<.00001,"US historical quantile incorrect")
+        rank=round(100*sum(v<=history["latest"] for v in sample)/len(sample),2)
+        check(abs(rank-p["percentile"])<.011,"US percentile does not match selected years")
+    for day,close in history.get("indexClose",{}).get("points",[]):
+        check(parsed_date(day)<=end and math.isfinite(close) and close>0,"US index overlay invalid")
+
 def audit_gold(payload):
     check(payload.get("mode")=="gold-aisc-v1" and payload.get("valid") is True,
           "Gold snapshot is not a verified cost-reference model")
@@ -198,10 +236,11 @@ def main():
         print(f"NOTE: CSI 500 overview ERP {score_erp:.2f}% vs index-official history ERP "
               f"{chart_erp:.2f}% (different PE providers)")
     audit_industries(industry)
+    audit_us_history(us)
     audit_gold(gold)
     for name,payload in (("China",latest),("US",us),("Industry",industry)):
         dt=payload.get("generatedAt") or payload.get("generatedAt",None)
         print(f"OK {name}: {dt or latest.get('dataDate')} source snapshot checked")
-    print("PASS: 11 historical charts and 5 asset cards pass snapshot integrity audit")
+    print("PASS: 12 historical charts and 5 asset cards pass snapshot integrity audit")
 
 if __name__=="__main__":main()

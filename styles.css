@@ -264,7 +264,7 @@
 :root{--valuation-nav-height:66px}
 html{scroll-behavior:smooth}
 .dashboard{padding-top:calc(20px + var(--valuation-nav-height))}
-#dashboard-top,#history-panel,#star-panel,#bse-panel,#gold-panel,.industry-panel[id]{scroll-margin-top:calc(var(--valuation-nav-height) + 14px)}
+#dashboard-top,#history-panel,#star-panel,#bse-panel,#sp500-panel,#gold-panel,.industry-panel[id]{scroll-margin-top:calc(var(--valuation-nav-height) + 14px)}
 .valuation-jump{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:120;
   width:min(1190px,100%);height:var(--valuation-nav-height);padding:3px 14px;
   background:rgba(244,246,251,.98);border-bottom:1px solid #dfe5f0;box-shadow:0 3px 13px #263d630c}

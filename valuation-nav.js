@@ -7,12 +7,13 @@
     {key:'csi500',target:'history-panel',kind:'erp',button:'data-history-years',fallback:10},
     {key:'star100',target:'star-panel',kind:'erp',button:'data-star-years',fallback:3},
     {key:'bse50',target:'bse-panel',kind:'erp',button:'data-bse-years',fallback:3},
+    {key:'sp500',target:'sp500-panel',kind:'erp',button:'data-sp500-years',fallback:10},
     {key:'gold',target:'gold-panel',kind:'cost',button:'data-gold-years',fallback:5},
     ...['399975','399989','399971','399998','000807','399997','399986']
       .map(code=>({key:code,target:'industry-'+code,kind:'pe',
         button:'data-industry-years',fallback:3}))
   ];
-  let current={market:null,industry:null,statuses:null,gold:null};
+  let current={market:null,industry:null,statuses:null,gold:null,us:null};
   const pctValid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100;
   function selectedYears(chart){
     const active=document.querySelector(
@@ -23,6 +24,11 @@
   }
   function lookup(chart){
     const market=current.market,industries=current.industry;
+    if(chart.key==='sp500'){
+      const data=current.us?.history;
+      return {period:data?.periods?.[String(selectedYears(chart))],date:data?.date,
+        valid:current.us?.mode==='live'&&data?.valid===true&&data?.id==='sp500'};
+    }
     if(chart.key==='csi500'){
       const data=market?.history?.series?.csi500;
       return {period:data?.periods?.[String(selectedYears(chart))],date:data?.date,
@@ -81,10 +87,11 @@
       }
       if(current.statuses&&typeof window.dataHealth==='function'){
         const industry=chart.kind==='pe';
-        let sync=industry?current.statuses.industry:current.statuses.market;
+        let sync=chart.key==='sp500'?current.statuses.us:
+          industry?current.statuses.industry:current.statuses.market;
         if(industry&&sync&&typeof sync.success==='boolean')
           sync={...sync,success:!Boolean(sync.errors?.[chart.key])};
-        const health=window.dataHealth(date,sync);
+        const health=window.dataHealth(date,sync,chart.key==='sp500'?45:10);
         if(!health.ok){
           chip.textContent='待更新';
           chip.dataset.tone='unknown';
@@ -149,11 +156,11 @@
   });
   document.addEventListener('click',event=>{
     const range=event.target.closest(
-      '[data-history-years],[data-star-years],[data-bse-years],[data-industry-years],[data-gold-years]');
+      '[data-history-years],[data-star-years],[data-bse-years],[data-sp500-years],[data-industry-years],[data-gold-years]');
     if(range)render();
   });
-  window.updateValuationJump=(market,industry,statuses,gold)=>{
-    current={market,industry,statuses,gold};
+  window.updateValuationJump=(market,industry,statuses,gold,us)=>{
+    current={market,industry,statuses,gold,us};
     render();
   };
   render();

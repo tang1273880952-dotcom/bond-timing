@@ -65,6 +65,8 @@ jobs:
           node tests/test_data_health.cjs
           node --check gold.js
           node tests/test_gold_render.cjs
+          node --check sp500.js
+          node tests/test_sp500_render.cjs
       - name: Check chart percentile order and tooltips
         run: |
           node --check history.js

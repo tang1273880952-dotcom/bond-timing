@@ -5,7 +5,7 @@ const css=fs.readFileSync('styles.css','utf8');
 const source=fs.readFileSync('valuation-nav.js','utf8');
 const pairs=[
  ['csi500','history-panel'],['star100','star-panel'],['bse50','bse-panel'],
- ['gold','gold-panel'],
+ ['sp500','sp500-panel'],['gold','gold-panel'],
  ['399975','industry-399975'],['399989','industry-399989'],
  ['399971','industry-399971'],['399998','industry-399998'],
  ['000807','industry-000807'],['399997','industry-399997'],
@@ -21,7 +21,7 @@ assert.ok(css.includes('flex-direction:column'));
 assert.ok(css.includes('scroll-margin-top:calc(var(--valuation-nav-height) + 14px)'));
 assert.ok(css.includes('.valuation-jump-link.is-current{'),'active background class');
 assert.ok(css.includes('inset 0 -3px 0'),'active bottom border');
-assert.strictEqual((html.match(/class="valuation-jump-link"/g)||[]).length,11);
+assert.strictEqual((html.match(/class="valuation-jump-link"/g)||[]).length,12);
 for(const [key,id] of pairs){
  assert.ok(html.includes('id="'+id+'"'),'target '+id);
  assert.ok(html.includes('href="#'+id+'"'),'jump '+id);
@@ -29,8 +29,8 @@ for(const [key,id] of pairs){
 }
 const chips=Object.fromEntries(pairs.map(([key])=>[key,{dataset:{tone:'unknown'},textContent:'暂无',title:''}]));
 const years={'history-panel':10,'star-panel':3,'bse-panel':3};
-years['gold-panel']=5;
-for(const [,id] of pairs.slice(4)) years[id]=3;
+years['gold-panel']=5;years['sp500-panel']=10;
+for(const [,id] of pairs.slice(5)) years[id]=3;
 const winListeners={},docListeners={};
 let y=0;
 const navLinks=Object.fromEntries(pairs.map(([key,id])=>[id,{
@@ -87,14 +87,14 @@ assert.deepStrictEqual(currentTargets(),['star-panel'],'switch when scrolling to
 assert.strictEqual(navLinks['history-panel'].attrs['aria-current'],undefined);
 visibleAt(2050);
 assert.deepStrictEqual(currentTargets(),['bse-panel'],'third chart gets highlight');
-visibleAt(550+690*9);
+visibleAt(550+690*pairs.findIndex(([key])=>key==='399997'));
 assert.deepStrictEqual(currentTargets(),['industry-399997'],'near bottom gets white spirits');
 winListeners.resize();
 assert.deepStrictEqual(currentTargets(),['industry-399997'],'resize preserves selected');
 visibleAt(0);
 nav.onclick({target:{closest(){return navLinks['industry-399986']}}});
 assert.deepStrictEqual(currentTargets(),['industry-399986'],'click highlights target even before anchor scroll');
-visibleAt(690*10+550);
+visibleAt(550+690*pairs.findIndex(([key])=>key==='399986'));
 assert.deepStrictEqual(currentTargets(),['industry-399986'],'scrolling to anchor keeps selected');
 visibleAt(0);
 assert.deepStrictEqual(currentTargets(),[],'no highlight when chart out of view');
@@ -104,7 +104,7 @@ const market={mode:'live',history:{series:{csi500:{date:'2026-10-29',
   periods:{'10':{percentile:75},'3':{percentile:50}}}}},
   star100:{valid:true,date:'2026-10-29',periods:{'3':{percentile:85}}},
   bse50:{valid:true,date:'2026-10-29',periods:{'3':{percentile:50}}}};
-const industry={items:pairs.slice(4).map(([code])=>({code,valid:true,
+const industry={items:pairs.slice(5).map(([code])=>({code,valid:true,
   date:'2026-10-29',metric:'PE-TTM',periods:{'3':{percentile:65},
   '10':{percentile:30}}}))};
 for(const [code,rank] of [['399975',1.2],['399998',97.9],['399986',63.1]]){
@@ -114,7 +114,13 @@ for(const [code,rank] of [['399975',1.2],['399998',97.9],['399986',63.1]]){
 }
 const gold={valid:true,quoteType:'spot',ratio:2.35,priceDate:'2026-10-29',costPeriod:'2026Q1',
  classification:{label:'较高成本溢价',tone:'caution'}};
-ctx.window.updateValuationJump(market,industry,null,gold);
+const us={mode:'live',history:{id:'sp500',valid:true,date:'2026-10-29',periods:{'10':{percentile:5},'3':{percentile:85}}}};
+ctx.window.updateValuationJump(market,industry,null,gold,us);
+assert.strictEqual(chips.sp500.dataset.tone,'rich');
+years['sp500-panel']=3;
+docListeners.click({target:{closest(q){return q.includes('data-sp500-years')?{}:null}}});
+assert.strictEqual(chips.sp500.dataset.tone,'cheap');
+assert.ok(chips.sp500.title.includes('近3年'));
 assert.strictEqual(chips.gold.dataset.tone,'caution');
 assert.ok(chips.gold.textContent.includes('2.35×'));
 assert.ok(!chips.gold.textContent.includes('%'),'AISC multiple must not be shown as historical percentile');
@@ -147,7 +153,7 @@ for(const [key] of pairs){
  assert.strictEqual(chips[key].dataset.tone,'unknown');
 }
 ctx.window.dataHealth=()=>({ok:false,label:'多日未更新，暂作历史参考'});
-ctx.window.updateValuationJump(market,industry,{market:{success:true},industry:{success:true},gold:{success:true}},gold);
+ctx.window.updateValuationJump(market,industry,{market:{success:true},industry:{success:true},gold:{success:true},us:{success:true}},gold,us);
 for(const [key] of pairs){
  assert.strictEqual(chips[key].textContent,'待更新','stale valuation must not look current '+key);
  assert.strictEqual(chips[key].dataset.tone,'unknown');

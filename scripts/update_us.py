@@ -2,6 +2,7 @@
 No fabricated scores: if a provider fails, keep the last verified snapshot.
 """
 import json
+import math
 import re
 import traceback
 from datetime import datetime
@@ -54,11 +55,9 @@ def get_pe():
     if len(records) < 120:
         raise ValueError("P/E source insufficient points: " + str(len(records)))
     frame = pd.DataFrame(records, columns=["date", "pe", "estimated"])
-    # Keep the most recent observation of each calendar month; exclude duplicate month entries.
-    frame = frame.sort_values("date").drop_duplicates("date")
-    frame["month"] = frame.date.dt.to_period("M")
-    frame = frame.drop_duplicates("month", keep="last").drop(columns="month")
-    return frame.sort_values("date").reset_index(drop=True)
+    # Retain both the monthly label and latest quote until PE/yield matching.
+    # Otherwise a newer yield can hide an earlier, usable same-month observation.
+    return frame.sort_values("date").drop_duplicates("date",keep="last").reset_index(drop=True)
 
 def monthly_table(url, value_name):
     html=download(url)
@@ -82,9 +81,69 @@ def monthly_table(url, value_name):
     frame=pd.DataFrame(rows,columns=["date",value_name])
     if len(frame)<120:
         raise ValueError("Monthly series too short: "+value_name+" "+str(len(frame)))
-    frame=frame.sort_values("date").drop_duplicates("date")
-    frame["month"]=frame.date.dt.to_period("M")
-    return frame.drop_duplicates("month",keep="last").drop(columns="month").reset_index(drop=True)
+    return frame.sort_values("date").drop_duplicates("date",keep="last").reset_index(drop=True)
+
+def one_per_month(frame):
+    result=frame.sort_values("date").copy()
+    result["month"]=result.date.dt.to_period("M")
+    return result.drop_duplicates("month",keep="last").drop(columns="month").reset_index(drop=True)
+
+def build_erp_history(matched,monthly_prices=None):
+    """Actual monthly observations; five references frozen at the last full month.
+
+    Source monthly histories can be revised and include estimated trailing PE.
+    This is a current historical comparison, not a point-in-time backtest.
+    """
+    data=one_per_month(matched)
+    if data.empty:
+        raise ValueError("S&P 500 matched ERP history is empty")
+    for row in data.itertuples(index=False):
+        if not all(math.isfinite(float(x)) for x in (row.pe,row.yield10,row.erp)) or row.pe<=0:
+            raise ValueError("Invalid US historical valuation")
+        if row.yieldSourceDate>row.date or (row.date-row.yieldSourceDate).days>42:
+            raise ValueError("US historical yield date is in the future or too old")
+        if abs(100/row.pe-row.yield10-row.erp)>1e-8:
+            raise ValueError("US historical ERP calculation mismatch")
+    latest=data.iloc[-1]
+    reference=latest.date.to_period("M").start_time-pd.Timedelta(days=1)
+    periods={}
+    for years in (3,5,10):
+        cutoff=reference-pd.DateOffset(years=years)
+        sample=data[(data.date>=cutoff)&(data.date<=reference)]
+        if (len(sample)<years*10 or sample.date.iloc[0]>cutoff+pd.Timedelta(days=32)
+            or (reference-sample.date.iloc[-1]).days>40
+            or sample.date.diff().dropna().max()>pd.Timedelta(days=65)):
+            raise ValueError(f"S&P 500 complete {years}-year monthly history unavailable")
+        periods[str(years)]={
+            "from":str(cutoff.date()),"to":str(reference.date()),
+            "referenceDate":str(reference.date()),"sampleCount":len(sample),
+            "basis":"月度真实观测",
+            "percentile":round(float(sample.erp.le(latest.erp).mean()*100),2),
+            **{f"p{q}":round(float(sample.erp.quantile(q/100)),6) for q in (10,20,50,80,90)}
+        }
+    # Keep one extra year for independently auditing window boundaries.
+    start=latest.date.to_period("M").start_time-pd.DateOffset(years=11)
+    visible=data[data.date>=start]
+    index_points=[]
+    if monthly_prices is not None and not monthly_prices.empty:
+        prices=one_per_month(monthly_prices)
+        prices=prices[(prices.date>=start)&(prices.date<=latest.date)]
+        index_points=[[str(r.date.date()),round(float(r.spx),2)]
+                      for r in prices.itertuples(index=False) if math.isfinite(float(r.spx)) and r.spx>0]
+    return {
+        "version":1,"id":"sp500","valid":True,"frequency":"monthly","unit":"%",
+        "date":str(latest.date.date()),"latest":round(float(latest.erp),6),
+        "pe":round(float(latest.pe),6),"yield10":round(float(latest.yield10),6),
+        "yieldDate":str(latest.yieldSourceDate.date()),"estimatedPE":bool(latest.estimated),
+        "periods":periods,
+        "points":[[str(r.date.date()),round(float(r.erp),6),round(float(r.pe),6),
+                   round(float(r.yield10),6),str(r.yieldSourceDate.date()),bool(r.estimated)]
+                  for r in visible.itertuples(index=False)],
+        "indexClose":{"frequency":"monthly","source":"Multpl 标普500月度指数点位（历史月均价，最新为来源所列观测）",
+                      "points":index_points},
+        "sources":[PE_URL,YIELD_MONTHLY_URL,PRICE_MONTHLY_URL],
+        "method":"ERP＝100÷标普500滚动PE－美国10年国债收益率。按来源日期向前匹配后每月保留一条真实观测；不插值为周线或日线。五条分位线仅使用上个完整月份及以前的3/5/10年样本，当前分位随最新ERP重算。历史月度数据可能修订，月初日期为来源月度标签，并非当日可交易信号；最新PE估算明确标注。"
+    }
 
 def fred(series):
     source = download(FRED_CSV.format(series=series))
@@ -110,14 +169,18 @@ def percent_rank(values, current):
 def calculate():
     now = datetime.now(TZ)
     pe = get_pe()
-    # Matching at each observation's actual date prevents future-lookahead.
-    # The monthly fallback is independent of the FRED daily feed.
+    today=pd.Timestamp(now.date())
+    pe=pe[pe.date<=today].copy()
+    # Match only backward by source labels. Revised monthly series do not
+    # constitute publication-dated information for a historical backtest.
     yield_history = monthly_table(YIELD_MONTHLY_URL, "yield10")
+    yield_history=yield_history[yield_history.date<=today].copy()
     yield_history = yield_history.rename(columns={"date":"yieldSourceDate"})
     merged = pd.merge_asof(pe, yield_history,
                            left_on="date",right_on="yieldSourceDate",
                            direction="backward", tolerance=pd.Timedelta(days=42))
     merged = merged.dropna(subset=["yield10"]).copy()
+    merged = one_per_month(merged)
     if len(merged) < 120:
         raise ValueError("PE and Treasury yields have too little matched history: "+str(len(merged)))
     merged["erp"] = 100.0 / merged.pe - merged.yield10
@@ -127,7 +190,8 @@ def calculate():
         raise ValueError("US PE stale: " + str(latest.date.date()))
     if (pd.Timestamp(now.date()) - latest_yield.yieldSourceDate).days > 45:
         raise ValueError("US Treasury yield stale: " + str(latest_yield.yieldSourceDate.date()))
-    window = merged[merged.date >= latest.date - pd.DateOffset(years=10)]
+    reference=latest.date.to_period("M").start_time-pd.Timedelta(days=1)
+    window = merged[(merged.date >= reference-pd.DateOffset(years=10)) & (merged.date<=reference)]
     if len(window) < 90:
         raise ValueError("Insufficient observations in last ten years: " + str(len(window)))
     erp_rank = percent_rank(window.erp, latest.erp)
@@ -138,8 +202,10 @@ def calculate():
     price = None
     ma10 = None
     price_error = None
+    monthly_prices = None
     try:
         monthly_prices=monthly_table(PRICE_MONTHLY_URL, "spx")
+        monthly_prices=one_per_month(monthly_prices[monthly_prices.date<=today])
         p0=monthly_prices.iloc[-1]
         if len(monthly_prices)>=24 and (pd.Timestamp(now.date())-p0.date).days<=45:
             price=float(p0.spx)
@@ -180,9 +246,10 @@ def calculate():
         "trend":trend,
         "trendSourceWarning":price_error,
         "metrics":metrics,
-        "model":"PE和美债收益率均按实际月度观测日期向前配对；最新PE可能是估算。评分=65% ERP历史10年分位+35% PE反向分位，未经回测。趋势为标普500月度价格相对于近10个月均值，不能视为200日均线。",
+        "model":"PE和美债按来源月度日期向前配对；月初日期为月度标签，历史可修订，最新PE可能估算。评分=65% ERP历史10年分位+35% PE反向分位，参考样本截止上个完整自然月，未经回测。趋势为标普500月度价格相对于近10个月均值，不能视为200日均线。",
         "sources":[PE_URL,YIELD_MONTHLY_URL,PRICE_MONTHLY_URL]
     }
+    output["history"]=build_erp_history(merged,monthly_prices)
     print("US score",score,"PE",latest.pe,"yield",latest.yield10,"ERP",latest.erp,"trend",trend,flush=True)
     return output
 

@@ -142,6 +142,7 @@ async function load() {
   }
   latest=await get(0);syncStatus=await get(1);
   usLatest=await get(2);usStatus=await get(3);
+  if(window.renderSP500)window.renderSP500(usLatest?.history,usStatus);
   render();renderUS();if(window.renderHistory)window.renderHistory(latest&&latest.history);if(window.renderBSE50)window.renderBSE50(latest&&latest.bse50);if(window.renderSTAR100)window.renderSTAR100(latest&&latest.star100);
   const industryData=await get(4);
   const industryStatus=await get(5);
@@ -149,7 +150,7 @@ async function load() {
   if(window.renderGold)window.renderGold(goldLatest,goldStatus);
   if(window.renderIndustries)window.renderIndustries(industryData,industryStatus);
   if(window.updateValuationJump)window.updateValuationJump(latest,industryData,
-    {market:syncStatus,industry:industryStatus,gold:goldStatus},goldLatest);
+    {market:syncStatus,industry:industryStatus,gold:goldStatus,us:usStatus},goldLatest,usLatest);
 }
 $('reload').onclick=load;
 load();

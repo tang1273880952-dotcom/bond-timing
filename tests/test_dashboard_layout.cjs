@@ -2,7 +2,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const html=fs.readFileSync('index.html','utf8');
 const css=fs.readFileSync('styles.css','utf8');
-const ids=['cards','us-section','gold-section','history-panel','star-panel','bse-panel','gold-panel'];
+const ids=['cards','us-section','gold-section','history-panel','star-panel','bse-panel','sp500-panel','gold-panel'];
 const offsets=ids.map(id=>html.indexOf('id="'+id+'"'));
 assert.ok(offsets.every(x=>x>=0),'required live chart containers');
 assert.ok(offsets.every((x,i)=>i===0||x>offsets[i-1]),'four-asset overview before three specified charts');
