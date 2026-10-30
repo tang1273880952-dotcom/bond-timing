@@ -33,7 +33,7 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Verify data transformations
         run: python -m unittest discover -s tests -p 'test_industry_*.py'
-      - name: Fetch verified CSI PE-TTM history for seven indices
+      - name: Fetch four verified index PE series and three PB percentile histories
         run: python scripts/update_industry.py
       - name: Save latest valid industry valuations
         run: |
