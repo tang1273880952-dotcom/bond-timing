@@ -1,5 +1,14 @@
 {
+  "attemptAt": "2026-10-30T09:27:55.691425+08:00",
   "success": false,
-  "attemptAt": null,
-  "error": "等待首次自动更新"
+  "usableCount": 0,
+  "errors": {
+    "399975": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399975; Official CSI has no usable rolling PE for 399975",
+    "399989": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399989; Official CSI has no usable rolling PE for 399989",
+    "399971": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399971; Official CSI has no usable rolling PE for 399971",
+    "399998": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399998; Official CSI has no usable rolling PE for 399998",
+    "000807": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 000807; Official CSI has no usable rolling PE for 000807",
+    "399997": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399997; Official CSI has no usable rolling PE for 399997",
+    "399986": "Official historical PE fetch incomplete: Official CSI has no usable rolling PE for 399986; Official CSI has no usable rolling PE for 399986"
+  }
 }
