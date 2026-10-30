@@ -301,3 +301,4 @@ html{scroll-behavior:smooth}
   .valuation-jump-link{flex-basis:100px;min-width:100px}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.data-warning{color:#a66419!important;font-weight:600}

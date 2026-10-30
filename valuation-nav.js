@@ -11,7 +11,7 @@
       .map(code=>({key:code,target:'industry-'+code,kind:'pe',
         button:'data-industry-years',fallback:3}))
   ];
-  let current={market:null,industry:null};
+  let current={market:null,industry:null,statuses:null};
   const pctValid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100;
   function selectedYears(chart){
     const active=document.querySelector(
@@ -59,6 +59,19 @@
         chip.dataset.tone='unknown';
         chip.title='当前选定年限暂无有效估值分位';
         continue;
+      }
+      if(current.statuses&&typeof window.dataHealth==='function'){
+        const industry=chart.kind==='pe';
+        let sync=industry?current.statuses.industry:current.statuses.market;
+        if(industry&&sync&&typeof sync.success==='boolean')
+          sync={...sync,success:!Boolean(sync.errors?.[chart.key])};
+        const health=window.dataHealth(date,sync);
+        if(!health.ok){
+          chip.textContent='待更新';
+          chip.dataset.tone='unknown';
+          chip.title=health.label+' · 历史数据 '+(date||'待核对');
+          continue;
+        }
       }
       const [name,tone]=status(p,chart.kind);
       chip.dataset.tone=tone;
@@ -120,8 +133,8 @@
       '[data-history-years],[data-star-years],[data-bse-years],[data-industry-years]');
     if(range)render();
   });
-  window.updateValuationJump=(market,industry)=>{
-    current={market,industry};
+  window.updateValuationJump=(market,industry,statuses)=>{
+    current={market,industry,statuses};
     render();
   };
   render();

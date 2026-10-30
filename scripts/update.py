@@ -126,6 +126,38 @@ def rank(frame,column,value,min_obs=80):
         raise ValueError(f"{column}有效历史记录只有{len(values)}条，少于{min_obs}")
     return round(float((values<=float(value)).mean()*100),2)
 
+def align_stock_valuations(pe, pb, yields, today):
+    """Keep the latest real PE and its preceding yield, including source dates.
+
+    PE/PB feeds contain month-end history plus one live observation. Truncating
+    that live observation to the bond date can silently select last month's PE.
+    The as-of join already prevents using a future yield.
+    """
+    cutoff = pd.Timestamp(today).normalize()
+    frames = []
+    for frame in (pe, pb, yields):
+        frame = frame.copy()
+        frame["date"] = (pd.to_datetime(frame["date"], errors="coerce")
+                         .astype("datetime64[ns]").dt.normalize())
+        frames.append(frame.loc[frame.date <= cutoff].sort_values("date"))
+    pe, pb, yields = frames
+    if pe.empty or pb.empty or yields.empty:
+        raise ValueError("缺少不晚于今日的PE、PB或国债观测")
+    matched = pd.merge_asof(
+        pe, yields[["date", "y10"]].rename(columns={"date": "yieldDate"}),
+        left_on="date", right_on="yieldDate", direction="backward",
+        tolerance=pd.Timedelta(days=5),
+    ).dropna(subset=["pe", "y10", "yieldDate"])
+    if matched.empty:
+        raise ValueError("PE没有匹配到此前5天内的真实国债收益率")
+    market_end = matched.date.iloc[-1]
+    if (yields.date.max() - market_end).days > 7:
+        raise ValueError("中证500 PE数据明显滞后: " + str(market_end))
+    pb = pb.loc[pb.date <= market_end]
+    if pb.empty or (max(market_end, yields.date.max()) - pb.date.max()).days > 40:
+        raise ValueError("中证500 PB数据明显滞后或没有同期观测")
+    return matched, pb
+
 def calculate():
     now=datetime.now(CN_TZ)
     today=now.date()
@@ -136,15 +168,9 @@ def calculate():
     y["s30"]=y.y30-y.y10
     y["d10"]=y.y10-y.y10.rolling(252,min_periods=120).mean()
     y["d30"]=y.y30-y.y30.rolling(252,min_periods=120).mean()
-    # Match PE observation to most recently published yield (no more than 5 calendar days old).
-    matched=pd.merge_asof(pe,y[["date","y10"]],on="date",direction="backward",tolerance=pd.Timedelta(days=5))
-    matched=matched.dropna()
+    matched,pb=align_stock_valuations(pe,pb,y,today)
     matched["erp"]=100/matched.pe-matched.y10
-    market_end=min(matched.date.max(),y.date.max())
-    if (y.date.max()-matched.date.max()).days>7:
-        raise ValueError("中证500 PE数据明显滞后: "+str(matched.date.max()))
-    if (y.date.max()-pb.date.max()).days>40:
-        raise ValueError("中证500 PB数据明显滞后: "+str(pb.date.max()))
+    market_end=matched.date.max()
     m=matched[matched.date<=market_end]
     last=m.iloc[-1]
     latest_bond=y.iloc[-1]
@@ -356,6 +382,7 @@ def calculate():
         "bondDataDate":str(latest_bond.date.date()),
         "stockPEDataDate":str(last.date.date()),
         "stockPBDataDate":str(latest_pb.date.date()),
+        "stockYieldDataDate":str(last.yieldDate.date()),
         "generatedAt":now.isoformat(),
         "history":history,
         "bse50":bse,
@@ -367,6 +394,7 @@ def calculate():
             ["PB",f"{latest_pb.pb:.2f}倍"],
             ["PE观测日期",str(last.date.date())],
             ["PB观测日期",str(latest_pb.date.date())],
+            ["ERP国债观测日期",str(last.yieldDate.date())],
             ["ERP近10年分位",f"{e:.1f}%"]]},
           {"id":"bond10","name":"10年国债ETF","score":bond10score,"metrics":[
             ["10Y国债收益率",f"{latest_bond.y10:.3f}%"],

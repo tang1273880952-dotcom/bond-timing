@@ -42,6 +42,13 @@
     const isPB=PB_CODES.has(code);
     const metric=isPB?'PB近10年历史分位':String(data?.metric||panel.dataset.metric||'PE-TTM');
     const refreshFailed=sourceStatus?.success===false&&Boolean(sourceStatus?.errors?.[code]);
+    const health=typeof window.dataHealth==='function'?
+      window.dataHealth(data?.date,sourceStatus?
+        {...sourceStatus,success:sourceStatus.success===true||
+          (sourceStatus.success===false&&!refreshFailed)}:null):{ok:true,label:''};
+    note.className='industry-note'+(health.ok?'':' data-warning');
+    const warning=!health.ok?' · '+health.label:
+      (refreshFailed?' · 本次更新失败，沿用旧数据':'');
     const verified=!isPB||(data?.metric==='PB'&&data?.pointMetric==='PB_10Y_PERCENTILE');
     const all=verified&&Array.isArray(data?.points)?data.points.map(p=>({
       date:String(p[0]),t:time(p[0]),value:Number(p[1])
@@ -67,7 +74,7 @@
       legend.textContent='';hover.textContent='';
       note.textContent=(data?.valid===true?'数据 '+data.date+' · ':'' )+
         (data?.note||'不使用指数价格代替PE、PB。')+
-        (refreshFailed?' · 本次更新失败，沿用旧数据':'');
+        warning;
       return;
     }
     const [label,tone]=zone(Number(period.percentile));
@@ -138,7 +145,7 @@
     note.textContent=(isPB?'当前PB '+fmt(data.value)+'倍 · 10年PB历史分位'+fmt(period.percentile)+'% · 近'+year+'年走势（分位基准固定10年） · ':'')+
       '数据 '+data.date+' · '+period.sampleCount+'个'+(isPB?'周度':'交易日')+'样本 · '+data.source+
       (data.note?' · '+data.note:'')+
-      (refreshFailed?' · 本次更新失败，沿用旧数据':'');
+      warning;
     hover.textContent=isPB?'历史曲线为PB十年分位（非历史PB倍数）':'移动或点击走势图查看历史估值';
     const svgNode=chart.querySelector('svg');
     const cursor=chart.querySelector('.industry-cursor');

@@ -1,5 +1,5 @@
-akshare>=1.17.0
-pandas>=2.0,<3.1
+akshare==1.20.16
+pandas==3.0.6
 lxml>=5.0
 html5lib>=1.1
 beautifulsoup4>=4.12

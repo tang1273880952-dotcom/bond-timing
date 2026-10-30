@@ -96,8 +96,15 @@ visibleAt(690*9+550);
 assert.deepStrictEqual(currentTargets(),['industry-399986'],'scrolling to anchor keeps selected');
 visibleAt(0);
 assert.deepStrictEqual(currentTargets(),[],'no highlight when chart out of view');
-const market=JSON.parse(fs.readFileSync('data/latest.json','utf8'));
-const industry=JSON.parse(fs.readFileSync('data/industry_latest.json','utf8'));
+// Stable fixtures: real market percentiles can cross these zones on any day.
+// Such a market move must never fail the scheduled data-update workflow.
+const market={mode:'live',history:{series:{csi500:{date:'2026-10-29',
+  periods:{'10':{percentile:75},'3':{percentile:50}}}}},
+  star100:{valid:true,date:'2026-10-29',periods:{'3':{percentile:85}}},
+  bse50:{valid:true,date:'2026-10-29',periods:{'3':{percentile:50}}}};
+const industry={items:pairs.slice(3).map(([code])=>({code,valid:true,
+  date:'2026-10-29',metric:'PE-TTM',periods:{'3':{percentile:65},
+  '10':{percentile:30}}}))};
 for(const [code,rank] of [['399975',1.2],['399998',97.9],['399986',63.1]]){
   const item=industry.items.find(x=>x.code===code);
   item.metric='PB';item.pointMetric='PB_10Y_PERCENTILE';item.value=code==='399986'?.75:1.5;
@@ -117,7 +124,7 @@ years['industry-399997']=10;
 docListeners.click({target:{closest(q){return q.includes('data-industry-years')?{}:null}}});
 assert.strictEqual(chips['399997'].dataset.tone,'watch');
 assert.ok(chips['399997'].title.includes('近10年'));
-const invalid=JSON.parse(fs.readFileSync('data/industry_latest.json','utf8'));
+const invalid=JSON.parse(JSON.stringify(industry));
 for(const item of invalid.items){
   if(['399975','399998','399986'].includes(item.code)){
     item.metric='PE-TTM';delete item.pointMetric;
@@ -130,6 +137,12 @@ for(const code of ['399975','399998','399986']){
 ctx.window.updateValuationJump({mode:'error'},null);
 for(const [key] of pairs){
  assert.strictEqual(chips[key].textContent,'暂无','missing estimate '+key);
+ assert.strictEqual(chips[key].dataset.tone,'unknown');
+}
+ctx.window.dataHealth=()=>({ok:false,label:'多日未更新，暂作历史参考'});
+ctx.window.updateValuationJump(market,industry,{market:{success:true},industry:{success:true}});
+for(const [key] of pairs){
+ assert.strictEqual(chips[key].textContent,'待更新','stale valuation must not look current '+key);
  assert.strictEqual(chips[key].dataset.tone,'unknown');
 }
 console.log('PASS: active chart highlights on scrolling and navigation clicks; badges still reflect valuations');

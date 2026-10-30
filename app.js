@@ -6,6 +6,26 @@ let latest=null, syncStatus=null, selected={}, expanded={};
 let usLatest=null, usStatus=null;
 try { selected=JSON.parse(localStorage.getItem(storageKey)||'{}')||{}; } catch(e) {selected={};}
 
+function dataHealth(date,status,maxDataDays=10){
+  const now=Date.now(),day=86400000;
+  const observed=Date.parse(String(date||'').slice(0,10)+'T00:00:00+08:00');
+  const attempt=Date.parse(status?.attemptAt||'');
+  if(!Number.isFinite(observed)||observed>now+day)
+    return {ok:false,label:'数据日期待核验'};
+  if(now-observed>maxDataDays*day)
+    return {ok:false,label:'数据较旧，暂作历史参考'};
+  if(!Number.isFinite(attempt)||attempt>now+day)
+    return {ok:false,label:'更新状态待核验'};
+  if(now-attempt>4*day)
+    return {ok:false,label:'多日未更新，暂作历史参考'};
+  if(status?.success===false)
+    return {ok:false,label:'更新失败，沿用旧数据'};
+  if(status?.success!==true)
+    return {ok:false,label:'更新状态待核验'};
+  return {ok:true,label:''};
+}
+window.dataHealth=dataHealth;
+
 function grade(n) {
   if (n>=85) return '历史低估区';
   if (n>=70) return '估值较有吸引力';
@@ -46,13 +66,18 @@ function render() {
   }
   const byId=Object.fromEntries(d.assets.map(a=>[a.id,a]));
   const assets=['csi500','bond10','bond30'].map(id=>byId[id]).filter(Boolean);
-  $('stamp').textContent='数据 '+safe(d.dataDate)+(st?.success===false?' · 最近更新失败，沿用旧数据':'');
-  const individuallyCheap=[...assets,
-    (usLatest?.mode==='live'&&Number.isFinite(usLatest.score))?usLatest:null]
+  const health=dataHealth(d.dataDate,st);
+  const usHealth=dataHealth(usLatest?.valuationDate,usStatus,45);
+  $('stamp').textContent='数据 '+safe(d.dataDate)+(health.ok?'':' · '+health.label);
+  $('stamp').classList.toggle('data-warning',!health.ok);
+  const individuallyCheap=[...(health.ok?assets:[]),
+    (usHealth.ok&&usLatest?.mode==='live'&&Number.isFinite(usLatest.score))?usLatest:null]
     .filter(a=>a&&a.score>=70);
   $('pick').textContent=individuallyCheap.length?
     '低估参考：'+individuallyCheap.map(a=>a.name).join('、'):'暂无明显低估信号';
-  $('reason').textContent='仅按各自历史估值观察，不代表跨资产收益排名或买入指令。';
+  $('reason').textContent=(!health.ok||!usHealth.ok)?
+    '更新异常或日期较旧的数据只作历史参考，不参与新增资金观察。':
+    '仅按各自历史估值观察，不代表跨资产收益排名或买入指令。';
   $('cards').innerHTML=assets.map(a=>{
     const tone=scoreTone(a.score),open=Boolean(expanded[a.id]),held=Boolean(selected[a.id]);
     const first=(a.metrics||[])[0];
@@ -120,7 +145,8 @@ async function load() {
   const industryData=await get(4);
   const industryStatus=await get(5);
   if(window.renderIndustries)window.renderIndustries(industryData,industryStatus);
-  if(window.updateValuationJump)window.updateValuationJump(latest,industryData);
+  if(window.updateValuationJump)window.updateValuationJump(latest,industryData,
+    {market:syncStatus,industry:industryStatus});
 }
 $('reload').onclick=load;
 load();
@@ -154,8 +180,10 @@ function renderUS(){
   const metrics=(d.metrics||[]).map(m=>
     '<div class="card-metric"><span>'+safe(m[0])+'</span><b>'+safe(m[1])+'</b></div>').join('');
   const erp=(d.metrics||[]).find(m=>String(m[0]).includes('风险溢价（盈利收益率')) || (d.metrics||[])[2];
+  const health=dataHealth(d.valuationDate,status,45);
   meta.textContent='数据 '+safe(d.valuationDate)+(d.estimatedPE?' · PE估算':'')+
-    (status?.success===false?' · 更新失败，沿用旧数据':'');
+    (health.ok?'':' · '+health.label);
+  meta.classList.toggle('data-warning',!health.ok);
   const tip=usDecision(d,held);
   section.innerHTML=
     '<div class="score-line"><strong class="score-value">'+safe(d.score)+

@@ -44,6 +44,11 @@ jobs:
       - name: Verify valuation history sampling
         if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-history]')
         run: python -m unittest discover -s scripts -p 'test_history_chart.py'
+      - name: Verify asynchronous PE and bond source dates
+        if: github.event_name != 'push' || contains(github.event.head_commit.message, '[refresh-history]')
+        run: |
+          python -m unittest discover -s scripts -p 'test_update_alignment.py'
+          python -m unittest discover -s tests -p 'test_audit_dates.py'
       - name: Check public asset completeness and JavaScript syntax
         run: |
           python -m unittest discover -s tests -p 'test_build_pages.py'
@@ -53,7 +58,7 @@ jobs:
           node tests/test_valuation_nav.cjs
           node tests/test_industry_render.cjs
           node tests/test_dashboard_layout.cjs
-          python scripts/audit_snapshot.py
+          node tests/test_data_health.cjs
       - name: Check chart percentile order and tooltips
         run: |
           node --check history.js
@@ -102,6 +107,8 @@ jobs:
         run: |
           git fetch origin main
           git reset --hard origin/main
+      - name: Audit actual refreshed snapshots before deployment
+        run: python scripts/audit_snapshot.py
       - name: Assemble minimal, validated Pages bundle
         run: python scripts/build_pages.py "$RUNNER_TEMP/pages-site"
       - uses: actions/configure-pages@v5

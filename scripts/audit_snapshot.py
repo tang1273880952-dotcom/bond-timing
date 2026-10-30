@@ -33,6 +33,12 @@ def subtract_years(d,years):
     try:return d.replace(year=d.year-years)
     except ValueError:return d.replace(year=d.year-years,day=28)
 
+def check_history_date(history_date, snapshot_date):
+    # Official index data and live PE do not necessarily publish together.
+    lag=(parsed_date(snapshot_date)-parsed_date(history_date)).days
+    check(0<=lag<=8,"历史估值日期晚于当前快照或已滞后超过8天")
+    return lag
+
 def quantile(values,pct):
     vals=sorted(values)
     index=(len(vals)-1)*pct/100
@@ -127,11 +133,17 @@ def main():
         expected={"bse50":"899050","star100":"000698"}[name]
         check(item.get("code")==expected,f"{name} wrong official index symbol")
         if item.get("valid"):
-            check(0<=item["periods"]["3"]["percentile"]<=100,
-                  f"{name} invalid three-year percentile")
+            periods=item.get("periods",{})
+            check("1" in periods and all(0<=p.get("percentile",-1)<=100
+                  for p in periods.values()),f"{name} invalid historical percentile")
     series=latest.get("history",{}).get("series",{}).get("csi500",{})
-    check(series.get("date")==latest["dataDate"],
-          "CSI 500 plotted date differs from overview snapshot")
+    lag=check_history_date(series.get("date"),latest["dataDate"])
+    if lag:
+        print(f"NOTE: official CSI500 history is {lag} day(s) behind live PE; actual dates retained")
+    if latest.get("stockYieldDataDate"):
+        pe_yield_gap=(parsed_date(latest["stockPEDataDate"])-
+                      parsed_date(latest["stockYieldDataDate"])).days
+        check(0<=pe_yield_gap<=5,"ERP国债观测使用未来数据或匹配间隔超过5天")
     check(all(0<=p.get("percentile",-1)<=100 for p in series.get("periods",{}).values()),
           "CSI 500 historical percentile invalid")
     # History & overview PE derive from different verified sources and can differ.
