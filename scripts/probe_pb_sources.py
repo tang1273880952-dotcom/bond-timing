@@ -1,15 +1,21 @@
-import json,re,requests
-urls={
-"guchacha":"https://guchacha.com/index-valuation/399975",
-"etf":"https://etf.whatsid.me/indices/valuation",
-"lixinger":"https://www.lixinger.com/equity/index/detail/sz/399975/399975/fundamental/valuation/pb"}
-for name,url in urls.items():
+import requests,re,json
+from bs4 import BeautifulSoup
+for code in ("399975","399998","399986"):
+ url="https://guchacha.com/index-valuation/"+code
  try:
-  r=requests.get(url,timeout=18,headers={"User-Agent":"Mozilla/5.0","Accept":"text/html"})
-  s=r.text
-  print(name,"status",r.status_code,"size",len(s),"doctype",s[:80].replace("\n"," "),flush=True)
-  print(name,"next_data",bool(re.search("__NEXT_DATA__|__next_f|window.__NUXT__",s)),"script tags",s.lower().count("<script"),"mentions target",s.count("399975"),"series",s.lower().count("series"),flush=True)
-  for key in ["__NEXT_DATA__", "data.pb", "pbHistory","valuationHistory","historicalPb","399975"]:
-   ix=s.find(key)
-   if ix>=0:print(name,"fragment",key,re.sub(r"\\s+"," ",s[max(0,ix-110):ix+220]),flush=True)
- except Exception as e:print(name,"ERROR",repr(e)[:200],flush=True)
+  r=requests.get(url,timeout=25,headers={"User-Agent":"Mozilla/5.0"})
+  html=r.text
+  soup=BeautifulSoup(html,"html.parser")
+  print("CODE",code,"http",r.status_code,"length",len(html),flush=True)
+  for idx,tag in enumerate(soup.find_all("script")):
+   content=tag.string or tag.get_text() or ""
+   print("SCRIPT",idx,tag.get("id"),tag.get("type"),"size",len(content),"src",str(tag.get("src"))[:100],
+     "dates",len(re.findall(r"202[0-9][-/.][01][0-9][-/.][0-3][0-9]",content)),
+     "pb matches",len(re.findall(r"\\bpb\\b|PB",content,flags=re.I)),flush=True)
+   if len(content)>500:
+    for word in ("__NUXT_DATA__","pbSeries","pbHistory","chartData","399975","399998","399986","2026-10-"):
+     pos=content.find(word)
+     if pos!=-1:print("NEAR",word,repr(content[max(0,pos-100):pos+300]),flush=True)
+  text=soup.get_text(" ",strip=True)
+  print("PAGE",repr(text[-250:]),flush=True)
+ except Exception as e:print("ERROR",code,repr(e)[:200],flush=True)
