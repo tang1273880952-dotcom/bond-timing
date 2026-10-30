@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f7fb">
   <meta name="description" content="中证500、国债ETF收益率估值、标普500以及科创100、北证50 ERP历史分位走势。">
   <title>股债估值观察</title>
-  <link rel="stylesheet" href="styles.css?v=20261030-nav4">
+  <link rel="stylesheet" href="styles.css?v=20261030-maint1">
 </head>
 <body>
 <main class="dashboard" id="dashboard-top">
@@ -64,7 +64,7 @@
 <details class="chart-help"><summary>数据说明</summary><p class="chart-help-text">北证50发布于2022年11月，历史不足5年。 ERP＝100÷滚动PE－中国10年国债收益率；分位线每月更新。指数点位不是ETF收益，估值分位不等于买卖信号。</p></details>
 </section>
 
-  <section class="panel industry-panel" id="industry-399975" data-industry-code="399975" data-metric="PB">
+  <section class="panel industry-panel" id="industry-399975" data-industry-code="399975" data-metric="PE-TTM">
     <h3>证券公司 <span class="chart-code">399975 · 历史估值</span></h3>
     <div class="industry-summary">正在读取真实估值数据</div>
     <div class="industry-toolbar">
@@ -115,7 +115,7 @@
     <p class="industry-note"></p>
   </section>
 
-  <section class="panel industry-panel" id="industry-399998" data-industry-code="399998" data-metric="PB">
+  <section class="panel industry-panel" id="industry-399998" data-industry-code="399998" data-metric="PE-TTM">
     <h3>中证煤炭 <span class="chart-code">399998 · 历史估值</span></h3>
     <div class="industry-summary">正在读取真实估值数据</div>
     <div class="industry-toolbar">
@@ -166,7 +166,7 @@
     <p class="industry-note"></p>
   </section>
 
-  <section class="panel industry-panel" id="industry-399986" data-industry-code="399986" data-metric="PB">
+  <section class="panel industry-panel" id="industry-399986" data-industry-code="399986" data-metric="PE-TTM">
     <h3>中证银行 <span class="chart-code">399986 · 历史估值</span></h3>
     <div class="industry-summary">正在读取真实估值数据</div>
     <div class="industry-toolbar">
@@ -186,7 +186,7 @@
 <details class="method-brief"><summary>估值方法与风险说明</summary>
 <p>不同资产评分公式不同，不能直接比大小。10年和30年国债ETF使用国债收益率代理，并非ETF实时价格。各图分位按自身历史计算，不能据此确定底部或保证未来收益。<strong>绿色表示相对更便宜，不代表立即买入。</strong></p>
 </details>
-<footer><span>行情日期见各卡片，历史参考线按月更新</span><button type="button" id="reload">刷新数据</button></footer>
+<footer><span>行情日期见各卡片，历史参考线按月更新</span><button type="button" id="reload" title="重新读取已发布的行情快照，服务器按北京时间定时更新">刷新数据</button></footer>
 </main>
 <nav id="valuation-jump" class="valuation-jump" aria-label="固定历史估值快捷导航">
   <div class="valuation-jump-track" aria-label="横向滚动查看全部估值指数">
@@ -232,10 +232,10 @@
     </a>
   </div>
 </nav>
-<script src="history.js?v=20261029-horizontal1"></script>
+<script src="history.js?v=20261030-maint1"></script>
 <script src="bse50.js?v=20261029-bse1"></script>
 <script src="star100.js?v=20261029-star1"></script>
-<script src="industry.js?v=20261030-industry2"></script>
+<script src="industry.js?v=20261030-maint1"></script>
 <script src="valuation-nav.js?v=20261030-nav4"></script>
-<script src="app.js?v=20261030-nav1"></script>
+<script src="app.js?v=20261030-maint1"></script>
 </body></html>

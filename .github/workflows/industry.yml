@@ -7,7 +7,7 @@ on:
       - '.github/workflows/industry.yml'
   workflow_dispatch:
   schedule:
-    - cron: '20 11 * * 1-5' # 19:20 Asia/Shanghai on trading weekdays
+    - cron: '20 11,15 * * 1-5' # 19:20 and 23:20 Asia/Shanghai weekdays
 permissions:
   contents: write
   pages: write
@@ -69,6 +69,7 @@ jobs:
         run: |
           node --check industry.js
           node tests/test_industry_render.cjs
+          python scripts/audit_snapshot.py
           python scripts/build_pages.py "$RUNNER_TEMP/pages-site"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
@@ -76,3 +77,13 @@ jobs:
           path: ${{ runner.temp }}/pages-site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Report incomplete industry refresh
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          s=json.loads(Path("data/industry_status.json").read_text(encoding="utf-8"))
+          if s.get("success") is not True or s.get("usableCount")!=7:
+              raise SystemExit("Some industry index sources failed; kept old verified values: "+str(s.get("errors",{})))
+          print("All seven industry valuations verified")
+          PY

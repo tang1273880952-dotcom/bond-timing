@@ -54,4 +54,9 @@ dom['history-panel'].on_click({target:{closest(x){
   return null;
 }}});
 assert.ok(!dom['history-chart'].innerHTML.includes('stroke="#8450C6" stroke-opacity="0.35"'));
+// Missing data must render the neutral empty state without throwing ReferenceError.
+ctx.window.renderHistory(null);
+assert.ok(dom['history-current'].className.includes('tone-neutral'));
+assert.ok(dom['history-current'].innerHTML.includes('参考线'));
+assert.strictEqual(dom['history-chart'].innerHTML,'');
 console.log('PASS: horizontal quantiles, date-scoped levels, view switching, index toggle');

@@ -114,8 +114,9 @@ def calculate():
     # The monthly fallback is independent of the FRED daily feed.
     yield_history = monthly_table(YIELD_MONTHLY_URL, "yield10")
     yield_history = yield_history.rename(columns={"date":"yieldSourceDate"})
-    merged = pd.merge_asof(pe, yield_history.rename(columns={"yieldSourceDate":"date"}),
-                           on="date", direction="backward", tolerance=pd.Timedelta(days=42))
+    merged = pd.merge_asof(pe, yield_history,
+                           left_on="date",right_on="yieldSourceDate",
+                           direction="backward", tolerance=pd.Timedelta(days=42))
     merged = merged.dropna(subset=["yield10"]).copy()
     if len(merged) < 120:
         raise ValueError("PE and Treasury yields have too little matched history: "+str(len(merged)))
@@ -157,7 +158,7 @@ def calculate():
         ["风险溢价10年分位", f"{erp_rank:.1f}%"],
         ["PE 10年分位", f"{pe_rank:.1f}%"],
         ["PE数据日期", str(latest.date.date()) + (" · 估算" if latest.estimated else "")],
-        ["美国10Y月度来源日期", str(latest_yield.yieldSourceDate.date())]
+        ["美国10Y月度来源日期", str(latest.yieldSourceDate.date())]
     ]
     if price is not None:
         metrics.extend([
@@ -171,7 +172,8 @@ def calculate():
         "name":"标普500",
         "score":int(score),
         "valuationDate":str(latest.date.date()),
-        "yieldDate":str(latest_yield.yieldSourceDate.date()),
+        "yieldDate":str(latest.yieldSourceDate.date()),
+        "yieldSourceLatestDate":str(latest_yield.yieldSourceDate.date()),
         "priceDate":price_date,
         "generatedAt":now.isoformat(),
         "estimatedPE":bool(latest.estimated),

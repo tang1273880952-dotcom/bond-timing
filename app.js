@@ -63,7 +63,7 @@ function render() {
       '<div class="score-line"><strong class="score-value">'+safe(a.score)+'</strong><span class="score-unit">/100 · 估值分</span></div>'+
       '<div class="valuation-status">'+scoreText(a.score)+'</div>'+
       (first?'<div class="asset-main-metric"><span>'+safe(first[0])+'</span><b>'+safe(first[1])+'</b></div>':'')+
-      (a.id==='csi500'?'<p class="asset-footnote">PE / PB / ERP</p>':
+      (a.id==='csi500'?'<p class="asset-footnote" title="概览使用乐咕乐股PE/PB；历史曲线使用中证指数官方PE，两者可略有差异">PE / PB / ERP · 源不同</p>':
         '<p class="asset-footnote">国债收益率代理 · 非ETF价格</p>')+
       '<button type="button" class="expand-trigger" data-expand="'+safe(a.id)+
         '" aria-expanded="'+open+'">'+(open?'收起详情 −':'查看指标 +')+'</button>'+
@@ -107,7 +107,8 @@ async function load() {
   const attempts=await Promise.allSettled([
     fetch('data/latest.json?'+stamp),fetch('data/status.json?'+stamp),
     fetch('data/us_latest.json?'+stamp),fetch('data/us_status.json?'+stamp),
-    fetch('data/industry_latest.json?'+stamp)
+    fetch('data/industry_latest.json?'+stamp),
+    fetch('data/industry_status.json?'+stamp)
   ]);
   async function get(i){
     if(attempts[i].status!=='fulfilled'||!attempts[i].value.ok)return null;
@@ -117,7 +118,8 @@ async function load() {
   usLatest=await get(2);usStatus=await get(3);
   render();renderUS();if(window.renderHistory)window.renderHistory(latest&&latest.history);if(window.renderBSE50)window.renderBSE50(latest&&latest.bse50);if(window.renderSTAR100)window.renderSTAR100(latest&&latest.star100);
   const industryData=await get(4);
-  if(window.renderIndustries)window.renderIndustries(industryData);
+  const industryStatus=await get(5);
+  if(window.renderIndustries)window.renderIndustries(industryData,industryStatus);
   if(window.updateValuationJump)window.updateValuationJump(latest,industryData);
 }
 $('reload').onclick=load;

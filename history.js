@@ -43,8 +43,8 @@
     render(saved);
   });
   function error(msg){
-    const viewTone=pct>=80?'cheap':pct>=60?'watch':pct>=40?'neutral':pct>=20?'caution':'rich';
-    el('history-current').className='history-current tone-'+viewTone;
+    // Missing data must never trigger a second exception.
+    el('history-current').className='history-current tone-neutral';
     el('history-current').innerHTML='<div class="history-empty">'+msg+'</div>';
     el('history-chart').innerHTML='';
     el('history-hover').textContent='';

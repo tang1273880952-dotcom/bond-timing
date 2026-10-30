@@ -79,7 +79,7 @@ def build_star100(daily, yields, asof):
         "indexPoints": [[str(r.date.date()), round(float(r.close), 2)]
                         for r in close_points.itertuples(index=False)],
         "valid": False, "frequency": "weekly",
-        "note": "科创100于2022年11月21日发布，不存在真实10年历史估值。",
+        "note": "科创100于2023年8月7日发布，不存在真实10年历史估值。",
     }
     if "pe" not in daily:
         base["reason"] = "官方数据缺少滚动PE，因此无法核验股债风险溢价"

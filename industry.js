@@ -15,6 +15,7 @@
   const years={};
   for (const [code] of CONFIG) years[code]=3;
   let source=null;
+  let sourceStatus=null;
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   })[c]);
@@ -38,6 +39,7 @@
     const hover=panel.querySelector('.industry-hover');
     const note=panel.querySelector('.industry-note');
     const metric=String(data?.metric||panel.dataset.metric||'PE-TTM');
+    const refreshFailed=sourceStatus?.success===false&&Boolean(sourceStatus?.errors?.[code]);
     const all=Array.isArray(data?.points)?data.points.map(p=>({
       date:String(p[0]),t:time(p[0]),value:Number(p[1])
     })).filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.value)&&p.value>0):[];
@@ -57,8 +59,9 @@
         (data?.reason||'等待真实历史估值数据');
       chart.innerHTML='<p class="industry-empty">暂无足够真实数据绘制'+year+'年估值图</p>';
       legend.textContent='';hover.textContent='';
-      note.textContent=(data?.valid===true?'数据 '+escape(data.date)+' · ':'' )+
-        (data?.note||'不使用指数价格代替PE、PB。');
+      note.textContent=(data?.valid===true?'数据 '+data.date+' · ':'' )+
+        (data?.note||'不使用指数价格代替PE、PB。')+
+        (refreshFailed?' · 本次更新失败，沿用旧数据':'');
       return;
     }
     const [label,tone]=zone(Number(period.percentile));
@@ -128,7 +131,8 @@
         color+'"></i>'+pct+' · '+fmt(period[key])+'倍</span>').join('');
     note.textContent='数据 '+data.date+' · 参考截止 '+period.referenceDate+
       ' · '+period.sampleCount+'个交易日样本 · '+data.source+
-      (data.note?' · '+data.note:'');
+      (data.note?' · '+data.note:'')+
+      (refreshFailed?' · 本次更新失败，沿用旧数据':'');
     hover.textContent='移动或点击走势图查看历史估值';
     const svgNode=chart.querySelector('svg');
     const cursor=chart.querySelector('.industry-cursor');
@@ -150,8 +154,9 @@
     svgNode.addEventListener('pointerdown',show);
     svgNode.addEventListener('pointerleave',()=>cursor.setAttribute('visibility','hidden'));
   }
-  function render(payload){
+  function render(payload,status){
     source=payload;
+    if(status!==undefined)sourceStatus=status;
     for(const [code] of CONFIG){
       const panel=document.querySelector('[data-industry-code="'+code+'"]');
       if(!panel)continue;
