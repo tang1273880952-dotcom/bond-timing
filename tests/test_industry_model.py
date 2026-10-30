@@ -75,6 +75,32 @@ class IndustryValuationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             industry.build_index("399975","证券公司","PB",short,pd.Timestamp("2026-10-30"))
 
+    def test_verified_pb_weekly_history_distinct_from_pb_multiples(self):
+        import json
+        days=pd.date_range(end="2026-10-29",periods=500,freq="7D")
+        series=[{"date":str(t.date()),"pb_pct":round(i%90+0.1,2)}
+                for i,t in enumerate(days)]
+        series[-1]["pb_pct"]=1.2
+        html=('<html><body>代码： 399975 市场： A股 最新交易日： 2026-10-29 '
+              'PB · 市净率 极冷 1.11 近 10 年百分位 1.2% '
+              '<script>var d='+json.dumps(series)+';</script></body></html>')
+        item=industry.parse_public_pb_page(html,"399975","2026-10-30")
+        self.assertEqual(item["metric"],"PB")
+        self.assertEqual(item["value"],1.11)
+        self.assertEqual(item["pointMetric"],"PB_10Y_PERCENTILE")
+        self.assertEqual(item["points"][-1][1],1.2)
+        self.assertEqual(item["periods"]["10"]["rankYears"],10)
+        for years in ("3","5","10"):
+            self.assertIn(years,item["periods"])
+            self.assertEqual(item["periods"][years]["p0"],0)
+            self.assertEqual(item["periods"][years]["p100"],100)
+            self.assertEqual(item["periods"][years]["percentile"],1.2)
+        self.assertNotIn("pe",item)
+        with self.assertRaises(ValueError):
+            industry.parse_public_pb_page(html,"399986","2026-10-30")
+        with self.assertRaises(ValueError):
+            industry.parse_public_pb_page(html.replace("1.11 近","11.11 近"),"399975","2026-11-30")
+
     def test_missing_data_is_not_fabricated(self):
         with self.assertRaises(ValueError):
             industry.parse_csi_payload({"other":[]},"399975")

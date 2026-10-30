@@ -15,6 +15,7 @@ ROOT=Path(__file__).resolve().parents[1]
 DATA=ROOT/"data"
 CODES=("399975","399989","399971","399998","000807","399997","399986")
 PCTS=(0,10,20,50,80,90,100)
+PB_CODES={"399975","399998","399986"}
 
 def read_json(name):
     obj=json.loads((DATA/name).read_text(encoding="utf-8"))
@@ -47,6 +48,26 @@ def audit_industries(payload):
         code=item["code"]
         if item.get("valid") is not True:
             print(f"WARN {code}: verified valuation not yet available")
+            continue
+        if code in PB_CODES:
+            check(item.get("metric")=="PB" and item.get("pointMetric")=="PB_10Y_PERCENTILE",
+                  f"{code}: expected actual PB percentile, not PE")
+            check(0.2<=float(item.get("value",-1))<=20,f"{code}: invalid current PB multiple")
+            pts=item.get("points",[])
+            check(len(pts)>=420,f"{code}: inadequate real weekly PB history")
+            check(pts[-1][0]==item["date"],f"{code}: last PB percentile date mismatch")
+            dates=[parsed_date(v[0]) for v in pts]
+            ranks=[float(v[1]) for v in pts]
+            check(all(0<=r<=100 for r in ranks),f"{code}: PB percentile out of range")
+            check(all(dates[i]<dates[i+1] for i in range(len(dates)-1)),
+                  f"{code}: PB weekly date sequence invalid")
+            for yrs,p in item["periods"].items():
+                check(p.get("rankYears")==10,f"{code}: PB baseline must be 10-year")
+                check(abs(p["percentile"]-ranks[-1])<0.11,f"{code}: PB current rank inconsistent")
+                check(all(float(p.get(f"p{q}",-1))==q for q in PCTS),
+                      f"{code}: PB rank-grid percentiles must be 0-100, not multiples")
+                count=sum(d>=subtract_years(dates[-1],int(yrs)) for d in dates)
+                check(count==p["sampleCount"],f"{code}: PB viewport points inconsistent")
             continue
         check(item.get("metric")=="PE-TTM",f"{code}: actual metric is not PE-TTM")
         check(len(item.get("points",[]))>=100,f"{code}: missing plotted observations")

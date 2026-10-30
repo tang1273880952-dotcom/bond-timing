@@ -33,8 +33,11 @@
         valid:data?.valid===true};
     }
     const data=industries?.items?.find(x=>x.code===chart.key);
+    const expectsPB=['399975','399998','399986'].includes(chart.key);
+    const verified=expectsPB?(data?.metric==='PB'&&data?.pointMetric==='PB_10Y_PERCENTILE'):
+      data?.metric==='PE-TTM';
     return {period:data?.periods?.[String(selectedYears(chart))],date:data?.date,
-      valid:data?.valid===true&&data?.metric==='PE-TTM'};
+      isPB:expectsPB,valid:data?.valid===true&&verified};
   }
   function status(percentile,kind){
     // ERP is inverse to PE: a higher ERP percentile means cheaper.
@@ -49,7 +52,7 @@
     for(const chart of charts){
       const chip=document.querySelector('[data-valuation-status="'+chart.key+'"]');
       if(!chip)continue;
-      const {period,date,valid}=lookup(chart);
+      const {period,date,valid,isPB}=lookup(chart);
       const p=period?.percentile;
       if(!valid||!pctValid(p)){
         chip.textContent='暂无';
@@ -60,8 +63,9 @@
       const [name,tone]=status(p,chart.kind);
       chip.dataset.tone=tone;
       chip.textContent=name+' · '+Math.round(p)+'%';
-      chip.title='近'+selectedYears(chart)+'年历史分位 '+p.toFixed(1)+'% · 数据 '+(date||'待核对')+
-        (chart.kind==='erp'?' · ERP越高越便宜':' · PE越低越便宜');
+      chip.title=(isPB?'PB近10年分位 '+p.toFixed(1)+'%，显示近'+selectedYears(chart)+'年走势':
+        '近'+selectedYears(chart)+'年历史分位 '+p.toFixed(1)+'%')+' · 数据 '+(date||'待核对')+
+        (isPB?' · PB越低越便宜':chart.kind==='erp'?' · ERP越高越便宜':' · PE越低越便宜');
     }
   }
   // Highlight the chart occupying the reading area, not the hovered tab.

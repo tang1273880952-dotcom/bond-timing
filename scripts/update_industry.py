@@ -1,4 +1,4 @@
-"""Fetch authentic CSI industry index PE-TTM history, never price-derived valuation.
+"""Fetch four authentic CSI PE histories and three public PB percentile histories.
 
 CSI index-perf records include an independently reported rolling P/E (row[15]).
 We deliberately do not substitute index closing price for valuation or fabricate
@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 import traceback
 import time
+import re
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -27,6 +29,8 @@ SYMBOLS=[
     ("399997","中证白酒","PE-TTM"),
     ("399986","中证银行","PB"),
 ]
+PB_PAGES={"399975":"zqgs","399998":"zzmt","399986":"zzyh"}
+PB_SOURCE="百分位 baifenwei.com · 指数PB近10年历史分位（每周）"
 MIN_DAYS_PER_YEAR=150
 PERCENTILES=(0,10,20,50,80,90,100)
 
@@ -161,6 +165,79 @@ def build_index(symbol,name,preferred,frame,today):
         "points":[[str(r.date.date()),round(float(r.pe),4)] for r in sampled.itertuples()],
         "periods":periods}
 
+
+def parse_public_pb_page(html,code,today):
+    """Only genuine PB snapshot and *historical PB percentile* observations.
+
+    This provider does NOT expose historical PB multiples. Never call its
+    pb_pct values PB multiples or calculate 3/5-year PB value percentiles.
+    """
+    if code not in PB_PAGES:
+        raise ValueError("PB source unsupported for "+code)
+    soup=BeautifulSoup(html,"html.parser")
+    content=soup.get_text(" ",strip=True)
+    check=re.search(r"代码：\s*(\d{6})\b",content)
+    if not check or check.group(1)!=code:
+        raise ValueError("Wrong public index code")
+    date_match=re.search(r"最新交易日：\s*(\d{4}-\d{2}-\d{2})",content)
+    pb_match=re.search(r"PB\s*·\s*市净率\s+\S+\s+(\d+(?:\.\d+)?)\s+近\s*10\s*年百分位\s*(\d+(?:\.\d+)?)%",content)
+    if not date_match or not pb_match:raise ValueError("PB value or date absent from published page")
+    latest=pd.Timestamp(date_match.group(1))
+    if (pd.Timestamp(today)-latest).days>9 or latest>pd.Timestamp(today):
+        raise ValueError("PB snapshot stale or dated in future")
+    pb=float(pb_match.group(1)); rank=float(pb_match.group(2))
+    if not (.2<=pb<=20 and 0<=rank<=100):
+        raise ValueError("PB or PB rank outside plausible bounds")
+    chart=None
+    for tag in soup.find_all("script"):
+        match=re.search(r"\bvar\s+d\s*=\s*(\[\{.*?\}\])\s*;",tag.string or tag.get_text() or "",flags=re.S)
+        if match:
+            chart=json.loads(match.group(1))
+            break
+    if not isinstance(chart,list) or len(chart)<420:
+        raise ValueError("PB weekly 10-year percentile history insufficient")
+    series=[]
+    for row in chart:
+        if not isinstance(row,dict):raise ValueError("Malformed public history")
+        day=pd.Timestamp(str(row.get("date")))
+        p=float(row.get("pb_pct"))
+        if not (0<=p<=100) or not pd.notna(day):
+            raise ValueError("Bad PB historical percentile")
+        series.append((day,round(p,2)))
+    if any(series[i][0]>=series[i+1][0] for i in range(len(series)-1)):
+        raise ValueError("Unordered or duplicated PB weekly dates")
+    if series[-1][0]!=latest or abs(series[-1][1]-rank)>0.11:
+        raise ValueError("PB history endpoint and overview percentile disagree")
+    if series[0][0]>latest-pd.DateOffset(years=9,months=6):
+        raise ValueError("PB history does not cover approximately 10 years")
+    periods={}
+    for years in (3,5,10):
+        fromdate=latest-pd.DateOffset(years=years)
+        visible=[v for d,v in series if d>=fromdate]
+        if len(visible)<years*42:
+            continue
+        # Ranking base remains the 10-year PB source percentile. The selectable
+        # year is a PLOT horizon only, not a recomputed PB-value distribution.
+        periods[str(years)]={"percentile":rank,"rankYears":10,
+            "sampleCount":len(visible),"referenceDate":str(latest.date()),
+            **{f"p{k}":float(k) for k in PERCENTILES}}
+    if "10" not in periods:raise ValueError("10y PB rank history not complete")
+    name=next(n for c,n,metric in SYMBOLS if c==code)
+    return {"code":code,"name":name,"valid":True,"metric":"PB",
+        "date":str(latest.date()),"value":pb,"periods":periods,
+        "points":[[str(d.date()),v] for d,v in series],
+        "pointMetric":"PB_10Y_PERCENTILE","source":PB_SOURCE,
+        "note":"真实PB倍数仅有最新值；走势图为10年PB历史分位（非历年PB倍数）。3/5/10年只切换走势范围，分位口径始终为10年。"}
+
+def fetch_public_pb(code,today,session=None):
+    sess=session or requests.Session()
+    url="https://baifenwei.com/index/"+PB_PAGES[code]+"/"
+    r=sess.get(url,timeout=30,headers={
+        "User-Agent":"Mozilla/5.0 (compatible; BondTimingResearch/1.0)",
+        "Accept":"text/html"})
+    r.raise_for_status()
+    return parse_public_pb_page(r.text,code,today)
+
 def main():
     OUT.mkdir(parents=True,exist_ok=True)
     now=datetime.now(ZoneInfo("Asia/Shanghai"))
@@ -178,22 +255,29 @@ def main():
     results={}
     for code,name,preferred in order:
         try:
-            d=load_history(code,today)
-            item=build_index(code,name,preferred,d,today)
+            if code in PB_PAGES:
+                item=fetch_public_pb(code,today)
+                print("Industry PB rank verified",code,item["date"],item["value"],flush=True)
+            else:
+                d=load_history(code,today)
+                item=build_index(code,name,preferred,d,today)
+                print("Industry PE verified",code,item["date"],list(item["periods"]),flush=True)
             results[code]=item
-            print("Industry PE ok",code,item["date"],list(item["periods"]),flush=True)
         except Exception as exc:
             print("Industry PE failed",code,repr(exc),flush=True)
             problems[code]=str(exc)[:240]
-            if code in old:
+            if code in old and (code not in PB_PAGES or old[code].get("metric")=="PB"):
                 item=old[code]
-                item["note"]=(item.get("note","")+" · 当前刷新失败，显示上次数据").strip(" ·")
+                item["stale"]=True
+                item["note"]=(item.get("note","")+" · 当前刷新失败，沿用上次真实数据").strip(" ·")
                 results[code]=item
             else:
                 results[code]={"code":code,"name":name,"valid":False,
-                    "metric":preferred,"reason":"暂未取得足够的真实历史估值数据"}
+                    "metric":"PB" if code in PB_PAGES else "PE-TTM",
+                    "reason":"PB数据暂时不可核验，不回退显示PE" if code in PB_PAGES
+                    else "暂未取得足够的真实PE历史数据"}
     items=[results[code] for code,_,_ in SYMBOLS]
-    target.write_text(json.dumps({"mode":"industry-valuations-v1",
+    target.write_text(json.dumps({"mode":"industry-valuations-v2",
         "generatedAt":now.isoformat(),"items":items},ensure_ascii=False,separators=(",",":")),encoding="utf-8")
     status_path.write_text(json.dumps({"attemptAt":now.isoformat(),
         "success":len(problems)==0,"usableCount":sum(bool(i.get("valid")) for i in items),

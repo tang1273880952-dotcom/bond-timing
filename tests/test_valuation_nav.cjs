@@ -98,18 +98,30 @@ visibleAt(0);
 assert.deepStrictEqual(currentTargets(),[],'no highlight when chart out of view');
 const market=JSON.parse(fs.readFileSync('data/latest.json','utf8'));
 const industry=JSON.parse(fs.readFileSync('data/industry_latest.json','utf8'));
+for(const [code,rank] of [['399975',1.2],['399998',97.9],['399986',63.1]]){
+  const item=industry.items.find(x=>x.code===code);
+  item.metric='PB';item.pointMetric='PB_10Y_PERCENTILE';item.value=code==='399986'?.75:1.5;
+  item.periods=Object.fromEntries(['3','5','10'].map(y=>[y,{percentile:rank,rankYears:10}]));
+}
 ctx.window.updateValuationJump(market,industry);
 assert.strictEqual(chips.csi500.dataset.tone,'watch','ERP 10-year mid-high cheaper');
 assert.strictEqual(chips.star100.dataset.tone,'cheap');
 assert.strictEqual(chips.bse50.dataset.tone,'neutral');
 assert.strictEqual(chips['399975'].dataset.tone,'cheap');
-assert.strictEqual(chips['399986'].dataset.tone,'rich');
+assert.strictEqual(chips['399986'].dataset.tone,'caution');
 assert.strictEqual(chips['399997'].dataset.tone,'caution');
-assert.ok(chips['399986'].textContent.includes('99%'));
+assert.ok(chips['399986'].textContent.includes('63%'));
+assert.ok(chips['399986'].title.includes('PB近10年分位'));
+assert.strictEqual(chips['399998'].dataset.tone,'rich');
 years['industry-399997']=10;
 docListeners.click({target:{closest(q){return q.includes('data-industry-years')?{}:null}}});
 assert.strictEqual(chips['399997'].dataset.tone,'watch');
 assert.ok(chips['399997'].title.includes('近10年'));
+const invalid=JSON.parse(fs.readFileSync('data/industry_latest.json','utf8'));
+ctx.window.updateValuationJump(market,invalid);
+for(const code of ['399975','399998','399986']){
+  assert.strictEqual(chips[code].textContent,'暂无','old PE data must not populate PB navigation');
+}
 ctx.window.updateValuationJump({mode:'error'},null);
 for(const [key] of pairs){
  assert.strictEqual(chips[key].textContent,'暂无','missing estimate '+key);

@@ -12,6 +12,7 @@
     ['p80','80%','#e1a462'],['p90','90%','#c96d49'],
     ['p100','100%','#ac4f3e']
   ];
+  const PB_CODES=new Set(['399975','399998','399986']);
   const years={};
   for (const [code] of CONFIG) years[code]=3;
   let source=null;
@@ -38,26 +39,31 @@
     const legend=panel.querySelector('.industry-legend');
     const hover=panel.querySelector('.industry-hover');
     const note=panel.querySelector('.industry-note');
-    const metric=String(data?.metric||panel.dataset.metric||'PE-TTM');
+    const isPB=PB_CODES.has(code);
+    const metric=isPB?'PB近10年历史分位':String(data?.metric||panel.dataset.metric||'PE-TTM');
     const refreshFailed=sourceStatus?.success===false&&Boolean(sourceStatus?.errors?.[code]);
-    const all=Array.isArray(data?.points)?data.points.map(p=>({
+    const verified=!isPB||(data?.metric==='PB'&&data?.pointMetric==='PB_10Y_PERCENTILE');
+    const all=verified&&Array.isArray(data?.points)?data.points.map(p=>({
       date:String(p[0]),t:time(p[0]),value:Number(p[1])
-    })).filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.value)&&p.value>0):[];
+    })).filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.value)&&
+      (isPB?(p.value>=0&&p.value<=100):p.value>0)):[];
     const today=Number.isFinite(time(data?.date))?time(data.date):0;
     const begin=new Date(today);
     if(today)begin.setUTCFullYear(begin.getUTCFullYear()-year);
     const low=begin.getTime();
     const points=all.filter(p=>p.t>=low&&p.t<=today);
     const period=data?.valid===true?data.periods?.[String(year)]:null;
-    const ok=data?.valid===true&&period&&points.length>=24&&
+    const ok=data?.valid===true&&verified&&period&&points.length>=24&&
       LEVELS.every(l=>typeof period[l[0]]==='number'&&Number.isFinite(period[l[0]]))&&
       LEVELS.every((l,i)=>!i||period[LEVELS[i-1][0]]<=period[l[0]])&&
       Number.isFinite(Number(period.percentile));
     if(!ok){
       summary.className='industry-summary tone-neutral';
-      summary.textContent=data?.valid===true?'该年限真实估值样本不足':
-        (data?.reason||'等待真实历史估值数据');
-      chart.innerHTML='<p class="industry-empty">暂无足够真实数据绘制'+year+'年估值图</p>';
+      summary.textContent=isPB?'PB数据暂不可核验':
+        (data?.valid===true?'该年限真实估值样本不足':
+         data?.reason||'等待真实历史估值数据');
+      chart.innerHTML='<p class="industry-empty">'+
+        (isPB?'暂无可核验的PB历史数据':'暂无足够真实数据绘制'+year+'年估值图')+'</p>';
       legend.textContent='';hover.textContent='';
       note.textContent=(data?.valid===true?'数据 '+data.date+' · ':'' )+
         (data?.note||'不使用指数价格代替PE、PB。')+
@@ -67,13 +73,13 @@
     const [label,tone]=zone(Number(period.percentile));
     summary.className='industry-summary tone-'+tone;
     summary.innerHTML=
-      '<div class="industry-metric"><span>当前'+escape(metric)+'</span><strong>'+fmt(data.value)+'<small> 倍</small></strong></div>'+
-      '<div class="industry-metric"><span>近'+year+'年分位</span><strong>'+fmt(period.percentile)+'<small>%</small></strong></div>'+
+      '<div class="industry-metric"><span>当前'+(isPB?'PB':'PE-TTM')+'</span><strong>'+fmt(data.value)+'<small> 倍</small></strong></div>'+
+      '<div class="industry-metric"><span>'+(isPB?'PB近10年分位':'近'+year+'年分位')+'</span><strong>'+fmt(period.percentile)+'<small>%</small></strong></div>'+
       '<div class="industry-metric"><span>估值状态</span><strong class="industry-state">'+label+'</strong></div>';
     const W=860,H=300,L=58,R=64,T=25,B=42,pW=W-L-R,pH=H-T-B;
     const vals=points.map(p=>p.value).concat(LEVELS.map(l=>Number(period[l[0]])));
-    const min=Math.min(...vals),max=Math.max(...vals);
-    const pad=Math.max(.2,(max-min)*.10);
+    const min=isPB?0:Math.min(...vals),max=isPB?100:Math.max(...vals);
+    const pad=isPB?0:Math.max(.2,(max-min)*.10);
     const y1=min-pad,y2=max+pad;
     const x=t=>L+(t-low)/Math.max(1,today-low)*pW;
     const y=v=>T+(y2-v)/(y2-y1)*pH;
@@ -115,7 +121,7 @@
     svg+='<rect x="'+tagX.toFixed(1)+'" y="'+tagY.toFixed(1)+
       '" width="109" height="22" rx="7" fill="#2f5ea8"/>';
     svg+='<text x="'+(tagX+7).toFixed(1)+'" y="'+(tagY+15).toFixed(1)+
-      '" fill="#fff" font-size="12">当前 '+fmt(last.value)+'倍</text>';
+      '" fill="#fff" font-size="12">当前 '+fmt(last.value)+(isPB?'%':'倍')+'</text>';
     const mid=new Date((low+today)/2).toISOString().slice(0,7);
     svg+='<text x="'+L+'" y="'+(H-11)+'" font-size="11" fill="#8190a5">'+
       new Date(low).toISOString().slice(0,7)+'</text>'+
@@ -128,12 +134,12 @@
     chart.innerHTML=svg;
     legend.innerHTML='<span class="legend-item"><i class="legend-line" style="--line:#356bd4;--dash:none"></i>'+escape(metric)+'实线</span>'+
       LEVELS.map(([key,pct,color])=>'<span class="legend-item"><i class="legend-line" style="--line:'+
-        color+'"></i>'+pct+' · '+fmt(period[key])+'倍</span>').join('');
-    note.textContent='数据 '+data.date+' · 参考截止 '+period.referenceDate+
-      ' · '+period.sampleCount+'个交易日样本 · '+data.source+
+        color+'"></i>'+pct+(isPB?'':' · '+fmt(period[key])+'倍')+'</span>').join('');
+    note.textContent=(isPB?'当前PB '+fmt(data.value)+'倍 · 10年PB历史分位'+fmt(period.percentile)+'% · 近'+year+'年走势（分位基准固定10年） · ':'')+
+      '数据 '+data.date+' · '+period.sampleCount+'个'+(isPB?'周度':'交易日')+'样本 · '+data.source+
       (data.note?' · '+data.note:'')+
       (refreshFailed?' · 本次更新失败，沿用旧数据':'');
-    hover.textContent='移动或点击走势图查看历史估值';
+    hover.textContent=isPB?'历史曲线为PB十年分位（非历史PB倍数）':'移动或点击走势图查看历史估值';
     const svgNode=chart.querySelector('svg');
     const cursor=chart.querySelector('.industry-cursor');
     if(!svgNode||!cursor)return;
@@ -148,7 +154,7 @@
       const cx=x(best.t).toFixed(2);
       cursor.setAttribute('x1',cx);cursor.setAttribute('x2',cx);
       cursor.setAttribute('visibility','visible');
-      hover.textContent=best.date+' · '+metric+' '+fmt(best.value)+'倍';
+      hover.textContent=best.date+' · '+metric+' '+fmt(best.value)+(isPB?'%（非PB倍数）':'倍');
     }
     svgNode.addEventListener('pointermove',show);
     svgNode.addEventListener('pointerdown',show);
