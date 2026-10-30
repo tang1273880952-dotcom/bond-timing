@@ -28,7 +28,7 @@ SYMBOLS=[
     ("399986","中证银行","PB"),
 ]
 MIN_DAYS_PER_YEAR=150
-PERCENTILES=(10,20,50,80,90)
+PERCENTILES=(0,10,20,50,80,90,100)
 
 def normalize(frame):
     if frame is None or frame.empty:
@@ -130,18 +130,20 @@ def build_index(symbol,name,preferred,frame,today):
     ref=(end.replace(day=1)-pd.Timedelta(days=1)).normalize()
     periods={}
     for years in (3,5,10):
-        begin=end-pd.DateOffset(years=years)
-        hist=d[(d.date>=begin)&(d.date<=end)]
+        # Both the seven horizontal lines AND current percentile use precisely
+        # the same historical sample, ending at the LAST COMPLETE MONTH.
+        # A separate live observation can fall outside [p0,p100].
+        begin=ref-pd.DateOffset(years=years)
         reference=d[(d.date>=begin)&(d.date<=ref)]
-        if (len(hist)<years*MIN_DAYS_PER_YEAR or
-            len(reference)<years*MIN_DAYS_PER_YEAR-20 or
-            hist.date.iloc[0]>begin+pd.Timedelta(days=45)):
+        if (len(reference)<years*MIN_DAYS_PER_YEAR or
+            reference.date.iloc[0]>begin+pd.Timedelta(days=45) or
+            reference.date.iloc[-1]<ref-pd.Timedelta(days=12)):
             continue
         values=reference.pe
-        # Horizontal levels freeze at last complete calendar month.
-        # Current percentile uses the available current as-of history.
         line={f"p{p}":round(float(values.quantile(p/100)),4) for p in PERCENTILES}
-        current_pct=float((hist.pe<=float(final.pe)).mean()*100)
+        current_pct=float(values.le(float(final.pe)).mean()*100)
+        if any(line[f"p{p}"]>line[f"p{q}"] for p,q in zip(PERCENTILES,PERCENTILES[1:])):
+            raise ValueError("Percentile reference order failed")
         periods[str(years)]={**line,"percentile":round(current_pct,2),
             "sampleCount":int(len(reference)),"referenceDate":str(reference.date.iloc[-1].date())}
     if not periods:

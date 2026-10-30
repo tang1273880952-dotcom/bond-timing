@@ -7,9 +7,10 @@
     ['399986','中证银行']
   ];
   const LEVELS=[
-    ['p10','10%','#15835c'],['p20','20%','#64af88'],
-    ['p50','50%','#8c98a9'],['p80','80%','#e1a462'],
-    ['p90','90%','#c96d49']
+    ['p0','0%','#106d51'],['p10','10%','#15835c'],
+    ['p20','20%','#64af88'],['p50','50%','#8c98a9'],
+    ['p80','80%','#e1a462'],['p90','90%','#c96d49'],
+    ['p100','100%','#ac4f3e']
   ];
   const years={};
   for (const [code] of CONFIG) years[code]=3;
@@ -47,7 +48,9 @@
     const points=all.filter(p=>p.t>=low&&p.t<=today);
     const period=data?.valid===true?data.periods?.[String(year)]:null;
     const ok=data?.valid===true&&period&&points.length>=24&&
-      LEVELS.every(l=>Number.isFinite(Number(period[l[0]])));
+      LEVELS.every(l=>typeof period[l[0]]==='number'&&Number.isFinite(period[l[0]]))&&
+      LEVELS.every((l,i)=>!i||period[LEVELS[i-1][0]]<=period[l[0]])&&
+      Number.isFinite(Number(period.percentile));
     if(!ok){
       summary.className='industry-summary tone-neutral';
       summary.textContent=data?.valid===true?'该年限真实估值样本不足':
@@ -83,12 +86,23 @@
         '" stroke="#e8eef5"/><text x="'+(L-10)+'" y="'+(gy+4)+
         '" text-anchor="end" font-size="11" fill="#8493a8">'+val(y2-(y2-y1)*k/4)+'</text>';
     }
-    for (const [key,pct,color] of LEVELS) {
-      const yy=y(Number(period[key]));
+    // Separate closely spaced labels, but leave every reference line at its
+    // exact historical level: labels must not make lines look mispositioned.
+    const ruleLabels=LEVELS.map(([key,pct,color])=>({
+      key,pct,color,yy:y(period[key])
+    })).sort((a,b)=>a.yy-b.yy);
+    for(let i=0;i<ruleLabels.length;i++){
+      const item=ruleLabels[i];
+      item.ly=Math.max(T+7,item.yy+3,i?ruleLabels[i-1].ly+13:T+7);
+    }
+    const overflow=ruleLabels[ruleLabels.length-1].ly-(H-B-2);
+    if(overflow>0)for(const item of ruleLabels)item.ly-=overflow;
+    for (const item of ruleLabels) {
+      const yy=item.yy;
       svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy.toFixed(2)+'" y2="'+yy.toFixed(2)+
-        '" stroke="'+color+'" stroke-width="1.5" stroke-dasharray="6 5"/>';
-      svg+='<text x="'+(W-R+8)+'" y="'+(yy+3).toFixed(2)+
-        '" fill="'+color+'" font-size="10">'+pct+'</text>';
+        '" stroke="'+item.color+'" stroke-width="1.5" stroke-dasharray="6 5"/>';
+      svg+='<text x="'+(W-R+8)+'" y="'+item.ly.toFixed(2)+
+        '" fill="'+item.color+'" font-size="10">'+item.pct+'</text>';
     }
     svg+='<path d="'+path+'" fill="none" stroke="#356bd4" stroke-width="2.5" stroke-linejoin="round"/>';
     svg+='<circle cx="'+endx.toFixed(2)+'" cy="'+endy.toFixed(2)+

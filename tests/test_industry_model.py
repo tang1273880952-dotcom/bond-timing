@@ -37,12 +37,40 @@ class IndustryValuationTests(unittest.TestCase):
         for n in ("3","5","10"):
             self.assertIn(n,result["periods"])
             b=result["periods"][n]
+            self.assertLessEqual(b["p0"],b["p10"])
             self.assertLessEqual(b["p10"],b["p20"])
             self.assertLessEqual(b["p20"],b["p50"])
             self.assertLessEqual(b["p50"],b["p80"])
             self.assertLessEqual(b["p80"],b["p90"])
+            self.assertLessEqual(b["p90"],b["p100"])
+            self.assertEqual(b["p0"],round(float(frame.loc[
+                (frame.date>=pd.Timestamp(b["referenceDate"])-pd.DateOffset(years=int(n)))&
+                (frame.date<=pd.Timestamp(b["referenceDate"])),"pe"].min()),4))
+            self.assertEqual(b["p100"],round(float(frame.loc[
+                (frame.date>=pd.Timestamp(b["referenceDate"])-pd.DateOffset(years=int(n)))&
+                (frame.date<=pd.Timestamp(b["referenceDate"])),"pe"].max()),4))
             self.assertTrue(0<=b["percentile"]<=100)
             self.assertTrue(b["referenceDate"].startswith("2026-09"))
+        # Current month is never used to calculate the historical bands/rank.
+        # Check the same historical reference produces 0% and 100% when the
+        # newest value falls outside the prior complete-month range.
+        upper=frame.copy()
+        upper.loc[upper.index[-1],"pe"]=200
+        out=industry.build_index("399997","中证白酒","PE-TTM",upper,pd.Timestamp("2026-10-30"))
+        self.assertEqual(out["periods"]["3"]["percentile"],100)
+        self.assertLess(out["periods"]["3"]["p100"],out["value"])
+        lower=frame.copy()
+        lower.loc[lower.index[-1],"pe"]=1
+        out=industry.build_index("399997","中证白酒","PE-TTM",lower,pd.Timestamp("2026-10-30"))
+        self.assertEqual(out["periods"]["3"]["percentile"],0)
+        self.assertGreater(out["periods"]["3"]["p0"],out["value"])
+        # Verify percentile is based on the SAME exact rows as p0-p100.
+        q=result["periods"]["3"]
+        ref_date=pd.Timestamp(q["referenceDate"])
+        sample=frame.loc[(frame.date>=ref_date-pd.DateOffset(years=3))&
+                         (frame.date<=ref_date),"pe"]
+        self.assertAlmostEqual(q["percentile"],
+            round(float(sample.le(result["value"]).mean()*100),2),places=2)
         short=frame[frame.date>="2024-01-01"]
         with self.assertRaises(ValueError):
             industry.build_index("399975","证券公司","PB",short,pd.Timestamp("2026-10-30"))
