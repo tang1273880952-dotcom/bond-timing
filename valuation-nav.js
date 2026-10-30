@@ -1,11 +1,8 @@
-/* Compact floating index navigation; status uses exactly each chart's selected horizon. */
+/* Always-visible valuation index navigator and matching live status. */
 (() => {
   'use strict';
-  const wrap=document.getElementById('valuation-jump');
-  const toggle=document.getElementById('valuation-jump-toggle');
-  const panel=document.getElementById('valuation-jump-panel');
-  if(!wrap||!toggle||!panel)return;
-
+  const nav=document.getElementById('valuation-jump');
+  if(!nav)return;
   const charts=[
     {key:'csi500',target:'history-panel',kind:'erp',button:'data-history-years',fallback:10},
     {key:'star100',target:'star-panel',kind:'erp',button:'data-star-years',fallback:3},
@@ -49,7 +46,6 @@
     return ['高估','rich'];
   }
   function render(){
-    let lowCount=0;
     for(const chart of charts){
       const chip=document.querySelector('[data-valuation-status="'+chart.key+'"]');
       if(!chip)continue;
@@ -62,36 +58,16 @@
         continue;
       }
       const [name,tone]=status(p,chart.kind);
-      if(tone==='cheap'||tone==='watch')lowCount++;
       chip.dataset.tone=tone;
       chip.textContent=name+' · '+Math.round(p)+'%';
       chip.title='近'+selectedYears(chart)+'年历史分位 '+p.toFixed(1)+'% · 数据 '+(date||'待核对')+
         (chart.kind==='erp'?' · ERP越高越便宜':' · PE越低越便宜');
     }
-    const count=document.getElementById('valuation-jump-count');
-    if(count)count.textContent=lowCount?lowCount+'项偏低':'10张图';
   }
-  function setOpen(open){
-    panel.hidden=!open;
-    toggle.setAttribute('aria-expanded',String(open));
-    wrap.classList.toggle('is-open',open);
-  }
-  toggle.addEventListener('click',()=>setOpen(panel.hidden));
-  panel.addEventListener('click',event=>{
-    const link=event.target.closest('a[href^="#"]');
-    if(link)setOpen(false);
-  });
   document.addEventListener('click',event=>{
     const range=event.target.closest(
       '[data-history-years],[data-star-years],[data-bse-years],[data-industry-years]');
     if(range)render();
-    if(!panel.hidden&&!wrap.contains(event.target))setOpen(false);
-  });
-  document.addEventListener('keydown',event=>{
-    if(event.key==='Escape'&&!panel.hidden){
-      setOpen(false);
-      toggle.focus();
-    }
   });
   window.updateValuationJump=(market,industry)=>{
     current={market,industry};

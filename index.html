@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f7fb">
   <meta name="description" content="中证500、国债ETF收益率估值、标普500以及科创100、北证50 ERP历史分位走势。">
   <title>股债估值观察</title>
-  <link rel="stylesheet" href="styles.css?v=20261030-nav2">
+  <link rel="stylesheet" href="styles.css?v=20261030-nav3">
 </head>
 <body>
 <main class="dashboard" id="dashboard-top">
@@ -188,37 +188,54 @@
 </details>
 <footer><span>行情日期见各卡片，历史参考线按月更新</span><button type="button" id="reload">刷新数据</button></footer>
 </main>
-<aside id="valuation-jump" class="valuation-jump" aria-label="顶部悬浮估值导航">
-  <span class="valuation-jump-caption">历史估值 · 快速跳转</span>
-  <button type="button" class="valuation-jump-toggle" id="valuation-jump-toggle"
-    aria-expanded="false" aria-controls="valuation-jump-panel">
-    <span class="valuation-jump-toggle-icon" aria-hidden="true">☷</span>
-    <span>估值导航</span><small id="valuation-jump-count">10张图</small>
-  </button>
-  <nav id="valuation-jump-panel" class="valuation-jump-panel" aria-label="快速跳转历史估值图" hidden>
-    <div class="valuation-jump-heading"><strong>历史估值</strong><span>点击直达</span></div>
-    <div class="valuation-jump-links">
-      <a href="#history-panel" class="valuation-jump-link"><span>中证500</span><span data-valuation-status="csi500" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#star-panel" class="valuation-jump-link"><span>科创100</span><span data-valuation-status="star100" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#bse-panel" class="valuation-jump-link"><span>北证50</span><span data-valuation-status="bse50" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#industry-399975" class="valuation-jump-link"><span>证券公司</span><span data-valuation-status="399975" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#industry-399989" class="valuation-jump-link"><span>中证医疗</span><span data-valuation-status="399989" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#industry-399971" class="valuation-jump-link"><span>中证传媒</span><span data-valuation-status="399971" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#industry-399998" class="valuation-jump-link"><span>中证煤炭</span><span data-valuation-status="399998" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#industry-000807" class="valuation-jump-link"><span>食品饮料</span><span data-valuation-status="000807" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#industry-399997" class="valuation-jump-link"><span>中证白酒</span><span data-valuation-status="399997" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-      <a href="#industry-399986" class="valuation-jump-link"><span>中证银行</span><span data-valuation-status="399986" class="valuation-jump-status" data-tone="unknown">暂无</span></a>
-    </div>
-    <div class="valuation-jump-bottom">
-      <a href="#dashboard-top">返回顶部 ↑</a>
-      <small>ERP高偏低估 · PE低偏低估</small>
-    </div>
-  </nav>
-</aside>
+<nav id="valuation-jump" class="valuation-jump" aria-label="固定历史估值快捷导航">
+  <div class="valuation-jump-track" aria-label="横向滚动查看全部估值指数">
+    <a href="#history-panel" class="valuation-jump-link" aria-label="跳转到中证500历史估值图">
+      <span class="valuation-jump-name">中证500</span>
+      <span data-valuation-status="csi500" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#star-panel" class="valuation-jump-link" aria-label="跳转到科创100历史估值图">
+      <span class="valuation-jump-name">科创100</span>
+      <span data-valuation-status="star100" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#bse-panel" class="valuation-jump-link" aria-label="跳转到北证50历史估值图">
+      <span class="valuation-jump-name">北证50</span>
+      <span data-valuation-status="bse50" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#industry-399975" class="valuation-jump-link" aria-label="跳转到证券公司历史估值图">
+      <span class="valuation-jump-name">证券公司</span>
+      <span data-valuation-status="399975" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#industry-399989" class="valuation-jump-link" aria-label="跳转到中证医疗历史估值图">
+      <span class="valuation-jump-name">中证医疗</span>
+      <span data-valuation-status="399989" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#industry-399971" class="valuation-jump-link" aria-label="跳转到中证传媒历史估值图">
+      <span class="valuation-jump-name">中证传媒</span>
+      <span data-valuation-status="399971" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#industry-399998" class="valuation-jump-link" aria-label="跳转到中证煤炭历史估值图">
+      <span class="valuation-jump-name">中证煤炭</span>
+      <span data-valuation-status="399998" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#industry-000807" class="valuation-jump-link" aria-label="跳转到食品饮料历史估值图">
+      <span class="valuation-jump-name">食品饮料</span>
+      <span data-valuation-status="000807" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#industry-399997" class="valuation-jump-link" aria-label="跳转到中证白酒历史估值图">
+      <span class="valuation-jump-name">中证白酒</span>
+      <span data-valuation-status="399997" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+    <a href="#industry-399986" class="valuation-jump-link" aria-label="跳转到中证银行历史估值图">
+      <span class="valuation-jump-name">中证银行</span>
+      <span data-valuation-status="399986" class="valuation-jump-status" data-tone="unknown">暂无</span>
+    </a>
+  </div>
+</nav>
 <script src="history.js?v=20261029-horizontal1"></script>
 <script src="bse50.js?v=20261029-bse1"></script>
 <script src="star100.js?v=20261029-star1"></script>
 <script src="industry.js?v=20261030-industry2"></script>
-<script src="valuation-nav.js?v=20261030-nav1"></script>
+<script src="valuation-nav.js?v=20261030-nav3"></script>
 <script src="app.js?v=20261030-nav1"></script>
 </body></html>
