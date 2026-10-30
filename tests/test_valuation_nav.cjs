@@ -2,6 +2,16 @@
 const assert=require('assert'),fs=require('fs'),vm=require('vm');
 const html=fs.readFileSync('index.html','utf8');
 const code=fs.readFileSync('valuation-nav.js','utf8');
+
+const css=fs.readFileSync('styles.css','utf8');
+assert.ok(html.includes('valuation-jump-caption'),'top bar label');
+assert.ok(html.includes('aria-label="顶部悬浮估值导航"'),'fixed top nav accessible name');
+assert.ok(css.includes('.valuation-jump{position:fixed;top:0;left:50%'),'fixed at top and centered');
+assert.ok(css.includes('width:min(1190px,100%)'),'aligned to dashboard maximum width');
+assert.ok(css.includes('top:calc(var(--valuation-nav-height) + 5px)'),'dropdown opens below top navigation');
+assert.ok(css.includes('scroll-margin-top:calc(var(--valuation-nav-height) + 14px)'),'jump targets not obscured');
+assert.ok(!css.includes('.valuation-jump{position:fixed;right:18px;bottom:20px'),'old bottom-right control removed');
+
 const targetKeys=[
  ['csi500','history-panel'],['star100','star-panel'],['bse50','bse-panel'],
  ['399975','industry-399975'],['399989','industry-399989'],
