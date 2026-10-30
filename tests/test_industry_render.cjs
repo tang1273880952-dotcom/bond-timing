@@ -40,7 +40,7 @@ const data={items:order.map(code=>{
         percentile:18,referenceDate:dates.at(-1)[0],sampleCount:160}:
       {p0:18,p10:20,p20:23,p50:30,p80:35,p90:40,p100:42,percentile:77,
         referenceDate:'2026-08-31',sampleCount:760}}};
-}});
+})};
 context.window.renderIndustries(data);
 for(const code of order){
   assert.ok(panels[code]._nodes['.industry-chart'].innerHTML.includes('<svg'),'actual plot '+code);
