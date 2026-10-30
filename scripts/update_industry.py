@@ -64,8 +64,12 @@ def fetch_official(symbol,start,end,session=None):
         "Referer":"https://www.csindex.com.cn/"
     },timeout=38)
     r.raise_for_status()
-    result=parse_csi_payload(r.json(),symbol)
+    payload=r.json()
+    result=parse_csi_payload(payload,symbol)
     if result.empty:
+        sample=repr((payload.get("data") or [])[:1])[:420]
+        print("CSI schema diagnostic",symbol,"rows",len(payload.get("data") or []),
+              "first",sample,flush=True)
         raise ValueError("Official CSI has no usable rolling PE for "+symbol)
     return result
 
