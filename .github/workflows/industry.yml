@@ -10,6 +10,8 @@ on:
     - cron: '20 11 * * 1-5' # 19:20 Asia/Shanghai on trading weekdays
 permissions:
   contents: write
+  pages: write
+  id-token: write
 concurrency:
   group: industry-index-data
   cancel-in-progress: false
@@ -17,6 +19,9 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,3 +60,19 @@ jobs:
               sleep 2
             done
           fi
+
+      - name: Sync latest dashboard and industry data
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+      - name: Validate industry chart and construct site
+        run: |
+          node --check industry.js
+          node tests/test_industry_render.cjs
+          python scripts/build_pages.py "$RUNNER_TEMP/pages-site"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/pages-site
+      - id: deployment
+        uses: actions/deploy-pages@v4
