@@ -64,6 +64,53 @@
         (chart.kind==='erp'?' · ERP越高越便宜':' · PE越低越便宜');
     }
   }
+  // Highlight the chart occupying the reading area, not the hovered tab.
+  // The probe is placed below the fixed navigation to avoid selecting the
+  // next chart simply because a small part appears at the screen bottom.
+  const tabs=charts.map(chart=>({
+    target:chart.target,
+    link:nav.querySelector('a[href="#'+chart.target+'"]'),
+    section:document.getElementById(chart.target)
+  })).filter(item=>item.link&&item.section);
+  let selected=null;
+  function selectChart(target){
+    if(selected===target)return;
+    selected=target;
+    for(const item of tabs){
+      const active=item.target===target;
+      item.link.classList.toggle('is-current',active);
+      if(active)item.link.setAttribute('aria-current','location');
+      else item.link.removeAttribute('aria-current');
+    }
+  }
+  function trackVisibleChart(){
+    const navBottom=Math.max(0,nav.getBoundingClientRect().bottom);
+    const viewportHeight=window.innerHeight||800;
+    const probe=Math.min(viewportHeight-20,
+      navBottom+Math.min(180,Math.max(80,viewportHeight*0.20)));
+    let target=null;
+    for(const item of tabs){
+      const rect=item.section.getBoundingClientRect();
+      if(rect.top<=probe&&rect.bottom>navBottom+8)target=item.target;
+    }
+    selectChart(target);
+  }
+  let framePending=false;
+  function onViewportChange(){
+    if(framePending)return;
+    framePending=true;
+    window.requestAnimationFrame(()=>{
+      framePending=false;
+      trackVisibleChart();
+    });
+  }
+  window.addEventListener('scroll',onViewportChange,{passive:true});
+  window.addEventListener('resize',onViewportChange);
+  window.addEventListener('hashchange',onViewportChange);
+  nav.addEventListener('click',event=>{
+    const link=event.target.closest('a[href^="#"]');
+    if(link&&tabs.some(item=>item.link===link))selectChart(link.getAttribute('href').slice(1));
+  });
   document.addEventListener('click',event=>{
     const range=event.target.closest(
       '[data-history-years],[data-star-years],[data-bse-years],[data-industry-years]');
@@ -74,4 +121,5 @@
     render();
   };
   render();
+  onViewportChange();
 })();
