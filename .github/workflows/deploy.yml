@@ -49,6 +49,8 @@ jobs:
           python -m unittest discover -s tests -p 'test_build_pages.py'
           node --check app.js
           node --check industry.js
+          node --check valuation-nav.js
+          node tests/test_valuation_nav.cjs
           node tests/test_industry_render.cjs
           node tests/test_dashboard_layout.cjs
       - name: Check chart percentile order and tooltips

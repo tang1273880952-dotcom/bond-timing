@@ -116,7 +116,9 @@ async function load() {
   latest=await get(0);syncStatus=await get(1);
   usLatest=await get(2);usStatus=await get(3);
   render();renderUS();if(window.renderHistory)window.renderHistory(latest&&latest.history);if(window.renderBSE50)window.renderBSE50(latest&&latest.bse50);if(window.renderSTAR100)window.renderSTAR100(latest&&latest.star100);
-  if(window.renderIndustries)window.renderIndustries(await get(4));
+  const industryData=await get(4);
+  if(window.renderIndustries)window.renderIndustries(industryData);
+  if(window.updateValuationJump)window.updateValuationJump(latest,industryData);
 }
 $('reload').onclick=load;
 load();
