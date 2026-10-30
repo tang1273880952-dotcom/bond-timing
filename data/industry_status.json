@@ -1,10 +1,6 @@
 {
-  "attemptAt": "2026-10-30T09:32:05.251376+08:00",
-  "success": false,
-  "usableCount": 4,
-  "errors": {
-    "000807": "Official historical PE fetch incomplete: 403 Client Error: Forbidden for url: https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=000807&startDate=20260930&endDate=20261030",
-    "399997": "Official historical PE fetch incomplete: 403 Client Error: Forbidden for url: https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=399997&startDate=20160930&endDate=20180929; 403 Client Error: Forbidden for url: https://www.csi",
-    "399986": "Official historical PE fetch incomplete: 403 Client Error: Forbidden for url: https://www.csindex.com.cn/csindex-home/perf/index-perf?indexCode=399986&startDate=20160930&endDate=20180929; 403 Client Error: Forbidden for url: https://www.csi"
-  }
+  "attemptAt": "2026-10-30T09:35:10.249107+08:00",
+  "success": true,
+  "usableCount": 7,
+  "errors": {}
 }
