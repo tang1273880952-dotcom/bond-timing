@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: github-pages
-      url: \${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -71,6 +71,6 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: \${{ runner.temp }}/site
+          path: ${{ runner.temp }}/site
       - id: deployment
         uses: actions/deploy-pages@v4
