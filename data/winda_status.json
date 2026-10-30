@@ -1,5 +1,5 @@
 {
   "success": false,
-  "updatedAt": null,
-  "error": "待更新"
+  "updatedAt": "2026-10-30T11:22:20.497287+08:00",
+  "error": "module 'akshare' has no attribute 'index_value_hist_funddb'"
 }

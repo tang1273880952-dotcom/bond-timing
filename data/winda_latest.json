@@ -1,6 +1,1 @@
-{
-  "valid": false,
-  "code": "881001.WI",
-  "name": "万得全A",
-  "reason": "等待首次可核验指数历史数据"
-}
+{"valid":false,"code":"881001.WI","name":"万得全A","reason":"尚未获取到可核验的万得全A真实PE-TTM历史数据，不展示替代估值。","sourcePE":"韭圈儿/基金估值数据库：万得全A历史市盈率（须核实PE口径）"}
