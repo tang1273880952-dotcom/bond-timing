@@ -301,3 +301,22 @@ html{scroll-behavior:smooth}
   .valuation-jump-link{flex-basis:100px;min-width:100px}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* Wind All-A independent card; preserve every existing card. */
+@media(min-width:981px){.assets-overview{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.assets-overview .winda-card{border-radius:15px;background:#fff;margin:0;min-width:0;
+  padding:17px 15px;box-shadow:0 3px 17px #24395c0b;
+  border:1px solid #e7ebf3;align-self:stretch}
+.assets-overview .winda-card .us-header h3{font-size:16px}
+.assets-overview .winda-card .score-value{font-size:39px}
+.winda-score-unit{font-size:17px;font-weight:650;color:inherit}
+.winda-card .us-content{display:flex;flex-direction:column;flex:1}
+.winda-card .asset-footnote{margin-bottom:13px}
+.winda-card-link{display:block;margin-top:auto;text-align:center;color:#4b638c;
+  text-decoration:none;border:1px solid #e3eaf6;background:#f6f8fc;
+  border-radius:9px;padding:10px 8px;font-size:12px;font-weight:750}
+.winda-card-link:hover{background:#e8f0ff}
+#winda-chart .history-svg{display:block;width:100%;height:auto}
+#winda-panel .history-current{margin:12px 0}
+@media(max-width:980px){.assets-overview{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.assets-overview{grid-template-columns:1fr}}

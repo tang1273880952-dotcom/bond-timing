@@ -4,6 +4,7 @@ const html=fs.readFileSync('index.html','utf8');
 const css=fs.readFileSync('styles.css','utf8');
 const source=fs.readFileSync('valuation-nav.js','utf8');
 const pairs=[
+ ['winda','winda-panel'],
  ['csi500','history-panel'],['star100','star-panel'],['bse50','bse-panel'],
  ['399975','industry-399975'],['399989','industry-399989'],
  ['399971','industry-399971'],['399998','industry-399998'],
@@ -20,15 +21,15 @@ assert.ok(css.includes('flex-direction:column'));
 assert.ok(css.includes('scroll-margin-top:calc(var(--valuation-nav-height) + 14px)'));
 assert.ok(css.includes('.valuation-jump-link.is-current{'),'active background class');
 assert.ok(css.includes('inset 0 -3px 0'),'active bottom border');
-assert.strictEqual((html.match(/class="valuation-jump-link"/g)||[]).length,10);
+assert.strictEqual((html.match(/class="valuation-jump-link"/g)||[]).length,11);
 for(const [key,id] of pairs){
  assert.ok(html.includes('id="'+id+'"'),'target '+id);
  assert.ok(html.includes('href="#'+id+'"'),'jump '+id);
  assert.ok(html.includes('data-valuation-status="'+key+'"'),'status '+key);
 }
 const chips=Object.fromEntries(pairs.map(([key])=>[key,{dataset:{tone:'unknown'},textContent:'暂无',title:''}]));
-const years={'history-panel':10,'star-panel':3,'bse-panel':3};
-for(const [,id] of pairs.slice(3)) years[id]=3;
+const years={'winda-panel':10,'history-panel':10,'star-panel':3,'bse-panel':3};
+for(const [,id] of pairs.slice(4)) years[id]=3;
 const winListeners={},docListeners={};
 let y=0;
 const navLinks=Object.fromEntries(pairs.map(([key,id])=>[id,{
@@ -78,27 +79,28 @@ function visibleAt(scrollY){
 }
 assert.deepStrictEqual(currentTargets(),[],'no highlight above first chart');
 visibleAt(550);
-assert.deepStrictEqual(currentTargets(),['history-panel'],'scroll to first chart');
-assert.strictEqual(navLinks['history-panel'].attrs['aria-current'],'location');
+assert.deepStrictEqual(currentTargets(),['winda-panel'],'scroll to first chart');
+assert.strictEqual(navLinks['winda-panel'].attrs['aria-current'],'location');
 visibleAt(1290);
-assert.deepStrictEqual(currentTargets(),['star-panel'],'switch when scrolling to next');
-assert.strictEqual(navLinks['history-panel'].attrs['aria-current'],undefined);
+assert.deepStrictEqual(currentTargets(),['history-panel'],'switch when scrolling to next');
+assert.strictEqual(navLinks['winda-panel'].attrs['aria-current'],undefined);
 visibleAt(2050);
-assert.deepStrictEqual(currentTargets(),['bse-panel'],'third chart gets highlight');
-visibleAt(550+690*8);
+assert.deepStrictEqual(currentTargets(),['star-panel'],'third chart gets highlight');
+visibleAt(550+690*9);
 assert.deepStrictEqual(currentTargets(),['industry-399997'],'near bottom gets white spirits');
 winListeners.resize();
 assert.deepStrictEqual(currentTargets(),['industry-399997'],'resize preserves selected');
 visibleAt(0);
 nav.onclick({target:{closest(){return navLinks['industry-399986']}}});
 assert.deepStrictEqual(currentTargets(),['industry-399986'],'click highlights target even before anchor scroll');
-visibleAt(690*9+550);
+visibleAt(690*10+550);
 assert.deepStrictEqual(currentTargets(),['industry-399986'],'scrolling to anchor keeps selected');
 visibleAt(0);
 assert.deepStrictEqual(currentTargets(),[],'no highlight when chart out of view');
 const market=JSON.parse(fs.readFileSync('data/latest.json','utf8'));
 const industry=JSON.parse(fs.readFileSync('data/industry_latest.json','utf8'));
-ctx.window.updateValuationJump(market,industry);
+const winda=JSON.parse(fs.readFileSync('data/winda_latest.json','utf8'));
+ctx.window.updateValuationJump(market,industry,winda);
 assert.strictEqual(chips.csi500.dataset.tone,'watch','ERP 10-year mid-high cheaper');
 assert.strictEqual(chips.star100.dataset.tone,'cheap');
 assert.strictEqual(chips.bse50.dataset.tone,'neutral');
@@ -110,7 +112,7 @@ years['industry-399997']=10;
 docListeners.click({target:{closest(q){return q.includes('data-industry-years')?{}:null}}});
 assert.strictEqual(chips['399997'].dataset.tone,'watch');
 assert.ok(chips['399997'].title.includes('近10年'));
-ctx.window.updateValuationJump({mode:'error'},null);
+ctx.window.updateValuationJump({mode:'error'},null,null);
 for(const [key] of pairs){
  assert.strictEqual(chips[key].textContent,'暂无','missing estimate '+key);
  assert.strictEqual(chips[key].dataset.tone,'unknown');

@@ -50,6 +50,8 @@ jobs:
           node --check app.js
           node --check industry.js
           node --check valuation-nav.js
+          node --check winda.js
+          node tests/test_winda_render.cjs
           node tests/test_valuation_nav.cjs
           node tests/test_industry_render.cjs
           node tests/test_dashboard_layout.cjs

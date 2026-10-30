@@ -4,6 +4,7 @@
   const nav=document.getElementById('valuation-jump');
   if(!nav)return;
   const charts=[
+    {key:'winda',target:'winda-panel',kind:'erp',button:'data-winda-years',fallback:10},
     {key:'csi500',target:'history-panel',kind:'erp',button:'data-history-years',fallback:10},
     {key:'star100',target:'star-panel',kind:'erp',button:'data-star-years',fallback:3},
     {key:'bse50',target:'bse-panel',kind:'erp',button:'data-bse-years',fallback:3},
@@ -11,7 +12,7 @@
       .map(code=>({key:code,target:'industry-'+code,kind:'pe',
         button:'data-industry-years',fallback:3}))
   ];
-  let current={market:null,industry:null};
+  let current={market:null,industry:null,winda:null};
   const pctValid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100;
   function selectedYears(chart){
     const active=document.querySelector(
@@ -22,6 +23,11 @@
   }
   function lookup(chart){
     const market=current.market,industries=current.industry;
+    if(chart.key==='winda'){
+      const data=current.winda;
+      return {period:data?.periods?.[String(selectedYears(chart))],date:data?.date,
+        valid:data?.valid===true&&data?.code==='881001.WI'};
+    }
     if(chart.key==='csi500'){
       const data=market?.history?.series?.csi500;
       return {period:data?.periods?.[String(selectedYears(chart))],date:data?.date,
@@ -113,13 +119,14 @@
   });
   document.addEventListener('click',event=>{
     const range=event.target.closest(
-      '[data-history-years],[data-star-years],[data-bse-years],[data-industry-years]');
+      '[data-winda-years],[data-history-years],[data-star-years],[data-bse-years],[data-industry-years]');
     if(range)render();
   });
-  window.updateValuationJump=(market,industry)=>{
-    current={market,industry};
+  window.updateValuationJump=(market,industry,winda)=>{
+    current={market,industry,winda};
     render();
   };
+  window.refreshValuationJump=render;
   render();
   onViewportChange();
 })();
