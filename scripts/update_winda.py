@@ -16,15 +16,18 @@ CACHE=DATA/"winda_pe_daily.csv"
 OUTPUT=DATA/"winda_latest.json"
 STATUS=DATA/"winda_status.json"
 WIND_CODE="881001.WI"
-PE_PROVIDER="韭圈儿/基金估值数据库：万得全A历史市盈率（须核实PE口径）"
+PE_PROVIDER="万得终端 881001.WI PE-TTM 正规导出（待提供）"
 BOND_PROVIDER="中国中债10年国债到期收益率"
 PCTS=(10,20,50,80,90)
 
 def fetch_winda_pe():
-    import akshare as ak
-    # No approximate stand-ins: only the provider entry named 万得全A.
-    source=ak.index_value_hist_funddb(symbol="万得全A",indicator="市盈率")
-    return normalize_pe(source)
+    # AKShare removed the old FundDB historical-valuation endpoint in 2025.
+    # Do not silently switch to equal-weight A-share PE or CSI All Share.
+    # Prefer the user's authorized terminal export, only for 881001.WI.
+    for path in (DATA/"winda_pe_import.csv",CACHE):
+        if path.is_file():
+            return normalize_pe(pd.read_csv(path))
+    raise ValueError("暂无可核验的万得全A 881001.WI PE-TTM历史数据源；需要Wind终端导出的date,pe数据")
 
 def normalize_pe(raw):
     if raw is None or raw.empty:
