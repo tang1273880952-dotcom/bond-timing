@@ -1,5 +1,5 @@
 {
   "success": false,
-  "updatedAt": "2026-10-30T11:25:04.302003+08:00",
-  "error": "module 'akshare' has no attribute 'index_value_hist_funddb'"
+  "updatedAt": "2026-10-30T11:25:39.380518+08:00",
+  "error": "暂无可核验的万得全A 881001.WI PE-TTM历史数据源；需要Wind终端导出的date,pe数据"
 }
