@@ -167,6 +167,8 @@
       multiplePB?'当前PB '+fmt(data.value)+'倍 · 近'+year+'年真实PB分位 '+fmt(period.percentile)+'% · ':'')+
       '数据 '+data.date+' · 参考截至 '+period.referenceDate+' · '+
       period.sampleCount+'个'+(isPB?'周度':'交易日')+'样本 · '+data.source+
+      (multiplePB&&data.value<period.p0?
+        ' · 当前PB低于所选'+year+'年历史最低参考值，分位0%是独立计算结果':'')+
       (data.note?' · '+data.note:'')+
       warning;
     hover.textContent=rankOnlyPB?'历史曲线仅为PB十年分位（非历史PB倍数）':
