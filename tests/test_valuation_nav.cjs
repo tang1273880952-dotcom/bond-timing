@@ -30,7 +30,7 @@ for(const [key,id] of pairs){
 const chips=Object.fromEntries(pairs.map(([key])=>[key,{dataset:{tone:'unknown'},textContent:'暂无',title:''}]));
 const years={'history-panel':10,'star-panel':3,'bse-panel':3};
 years['gold-panel']=5;years['sp500-panel']=10;
-for(const [,id] of pairs.slice(5)) years[id]=3;
+for(const [,id] of pairs.slice(5)) years[id]=['industry-399975','industry-399998','industry-399986'].includes(id)?10:3;
 const winListeners={},docListeners={};
 let y=0;
 const navLinks=Object.fromEntries(pairs.map(([key,id])=>[id,{
@@ -109,8 +109,11 @@ const industry={items:pairs.slice(5).map(([code])=>({code,valid:true,
   '10':{percentile:30}}}))};
 for(const [code,rank] of [['399975',1.2],['399998',97.9],['399986',63.1]]){
   const item=industry.items.find(x=>x.code===code);
-  item.metric='PB';item.pointMetric='PB_10Y_PERCENTILE';item.value=code==='399986'?.75:1.5;
-  item.periods=Object.fromEntries(['3','5','10'].map(y=>[y,{percentile:rank,rankYears:10}]));
+  item.metric='PB';item.pointMetric=code==='399975'?'PB_MULTIPLE':'PB_10Y_PERCENTILE';
+  item.value=code==='399986'?.75:1.5;
+  item.periods=code==='399975'?{'3':{percentile:75,rankYears:3},
+    '5':{percentile:40,rankYears:5},'10':{percentile:1.2,rankYears:10}}:
+    {'10':{percentile:rank,rankYears:10}};
 }
 const gold={valid:true,quoteType:'spot',ratio:2.35,priceDate:'2026-10-29',costPeriod:'2026Q1',
  classification:{label:'较高成本溢价',tone:'caution'}};
@@ -131,7 +134,18 @@ assert.strictEqual(chips['399975'].dataset.tone,'cheap');
 assert.strictEqual(chips['399986'].dataset.tone,'caution');
 assert.strictEqual(chips['399997'].dataset.tone,'caution');
 assert.ok(chips['399986'].textContent.includes('63%'));
-assert.ok(chips['399986'].title.includes('PB近10年分位'));
+assert.ok(chips['399986'].title.includes('PB仅有近10年分位'));
+assert.ok(chips['399975'].title.includes('近10年真实PB分位'));
+years['industry-399975']=3;
+docListeners.click({target:{closest(q){return q.includes('data-industry-years')?{}:null}}});
+assert.ok(chips['399975'].textContent.includes('75%'),'3-year PB rank must update independently');
+years['industry-399975']=5;
+docListeners.click({target:{closest(q){return q.includes('data-industry-years')?{}:null}}});
+assert.ok(chips['399975'].textContent.includes('40%'),'5-year PB rank must update independently');
+assert.ok(chips['399975'].title.includes('近5年真实PB分位'));
+years['industry-399975']=10;
+docListeners.click({target:{closest(q){return q.includes('data-industry-years')?{}:null}}});
+assert.ok(chips['399975'].textContent.includes('1%'),'10-year PB rank restored');
 assert.strictEqual(chips['399998'].dataset.tone,'rich');
 years['industry-399997']=10;
 docListeners.click({target:{closest(q){return q.includes('data-industry-years')?{}:null}}});

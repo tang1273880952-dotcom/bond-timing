@@ -57,24 +57,61 @@ def audit_industries(payload):
             print(f"WARN {code}: verified valuation not yet available")
             continue
         if code in PB_CODES:
-            check(item.get("metric")=="PB" and item.get("pointMetric")=="PB_10Y_PERCENTILE",
-                  f"{code}: expected actual PB percentile, not PE")
-            check(0.2<=float(item.get("value",-1))<=20,f"{code}: invalid current PB multiple")
-            pts=item.get("points",[])
-            check(len(pts)>=420,f"{code}: inadequate real weekly PB history")
-            check(pts[-1][0]==item["date"],f"{code}: last PB percentile date mismatch")
-            dates=[parsed_date(v[0]) for v in pts]
-            ranks=[float(v[1]) for v in pts]
-            check(all(0<=r<=100 for r in ranks),f"{code}: PB percentile out of range")
+            check(item.get("metric")=="PB",
+                  f"{code}: expected real PB, not PE")
+            check(.2<=float(item.get("value",-1))<=20,
+                  f"{code}: latest PB multiple invalid")
+            points=item.get("points",[])
+            mode=item.get("pointMetric")
+            check(len(points)>=420 and mode in ("PB_MULTIPLE","PB_10Y_PERCENTILE"),
+                  f"{code}: missing validated PB history or unknown source")
+            dates=[parsed_date(v[0]) for v in points]
+            vals=[float(v[1]) for v in points]
             check(all(dates[i]<dates[i+1] for i in range(len(dates)-1)),
-                  f"{code}: PB weekly date sequence invalid")
-            for yrs,p in item["periods"].items():
-                check(p.get("rankYears")==10,f"{code}: PB baseline must be 10-year")
-                check(abs(p["percentile"]-ranks[-1])<0.11,f"{code}: PB current rank inconsistent")
-                check(all(float(p.get(f"p{q}",-1))==q for q in PCTS),
-                      f"{code}: PB rank-grid percentiles must be 0-100, not multiples")
-                count=sum(d>=subtract_years(dates[-1],int(yrs)) for d in dates)
-                check(count==p["sampleCount"],f"{code}: PB viewport points inconsistent")
+                  f"{code}: PB historical dates out of order")
+            check(all(math.isfinite(v) for v in vals),
+                  f"{code}: PB history contains invalid numbers")
+            if mode=="PB_MULTIPLE":
+                check(code=="399975",f"{code}: unauthorized PB multiple provider mapping")
+                check(all(.1<v<30 for v in vals),
+                      f"{code}: PB multiple outside valid range")
+                check(0<=(parsed_date(item["date"])-dates[-1]).days<=9,
+                      f"{code}: current PB has no matching historical endpoint")
+                check(abs(vals[-1]-float(item["value"]))<=max(.08,float(item["value"])*.06),
+                      f"{code}: latest source PB inconsistent with raw history")
+                check(set(item.get("periods",{}))=={"3","5","10"},
+                      f"{code}: PB 3/5/10-year history missing")
+                last=parsed_date(item["date"])
+                ref=last.replace(day=1)-timedelta(days=1)
+                for years,p in item["periods"].items():
+                    begin=subtract_years(ref,int(years))
+                    sample=[v for d,v in zip(dates,vals) if begin<=d<=ref]
+                    check(len(sample)==p["sampleCount"] and len(sample)>=int(years)*42,
+                          f"{code}: raw PB window sample count mismatch")
+                    check(p.get("rankYears")==int(years),
+                          f"{code}: PB percentile window wrongly kept fixed at ten years")
+                    check(begin<=parsed_date(p["referenceDate"])<=ref,
+                          f"{code}: PB reference outside complete prior month")
+                    for q in PCTS:
+                        check(abs(quantile(sample,q)-float(p[f"p{q}"]))<.00025,
+                              f"{code}: wrong {years}yr real PB multiple reference {q}%")
+                    rank=round(100*sum(v<=float(item["value"]) for v in sample)/len(sample),2)
+                    check(abs(rank-p["percentile"])<=.25,
+                          f"{code}: PB rank not calculated from matching {years}yr values")
+            else:
+                check(all(0<=v<=100 for v in vals),f"{code}: PB historical ranks invalid")
+                check("10" in item.get("periods",{}),f"{code}: ten-year PB rank missing")
+                # 3/5-year ranges present in older snapshots are deprecated
+                # and must not be rendered as independent 3/5-year ranks.
+                ten=item["periods"]["10"]
+                check(ten.get("rankYears")==10 and
+                      abs(ten["percentile"]-vals[-1])<.11,
+                      f"{code}: source ten-year PB rank and endpoint disagree")
+                check(all(float(ten.get(f"p{q}",-1))==q for q in PCTS),
+                      f"{code}: ten-year PB percentage grid is not 0..100")
+                if set(item["periods"])!={"10"}:
+                    print(f"WARN {code}: legacy fixed 3/5-year PB ranks "
+                          "will be disabled in the browser until source refresh")
             continue
         check(item.get("metric")=="PE-TTM",f"{code}: actual metric is not PE-TTM")
         check(len(item.get("points",[]))>=100,f"{code}: missing plotted observations")

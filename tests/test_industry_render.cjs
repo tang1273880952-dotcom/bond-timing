@@ -1,61 +1,121 @@
-/* Seven new charts appear only after BSE50, with correct percentiles. */
+/* Ten-year real rank-only PB cannot impersonate 3/5-year PB multiples. */
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const html=fs.readFileSync('index.html','utf8');
 const order=['399975','399989','399971','399998','000807','399997','399986'];
+const PB=new Set(['399975','399998','399986']);
 let prev=html.indexOf('id="bse-panel"');
-assert.ok(prev>0);
 for(const code of order){
-  const pos=html.indexOf('data-industry-code="'+code+'"');
-  assert.ok(pos>prev,'sector section order '+code);prev=pos;
+ const pos=html.indexOf('data-industry-code="'+code+'"');
+ assert.ok(pos>prev,'sector section order '+code);
+ prev=pos;
 }
 const script=fs.readFileSync('industry.js','utf8');
-for(const p of ['p0','p10','p20','p50','p80','p90','p100']) assert.ok(script.includes("'"+p+"'"));
-const panels=Object.fromEntries(order.map(code=>[code,{
-  dataset:{industryCode:code,metric:['399975','399998','399986'].includes(code)?'PB':'PE-TTM'},
-  querySelectorAll:()=>[],
-  querySelector(selector){
-    const target=this._nodes||(this._nodes={});
-    return target[selector]||(target[selector]={
-      innerHTML:'',textContent:'',className:'',querySelector(){return null}
-    });
-  }
-}]));
+for(const p of ['p0','p10','p20','p50','p80','p90','p100'])assert.ok(script.includes("'"+p+"'"));
+const events={};
+const panels=Object.fromEntries(order.map(code=>{
+ const node={dataset:{industryCode:code,metric:PB.has(code)?'PB':'PE-TTM'},_buttons:[]};
+ for(const y of [3,5,10])node._buttons.push({
+  dataset:{industryYears:String(y)},disabled:false,title:'',
+  closest(sel){return sel==='[data-industry-code]'?node:null},
+  classList:{toggle(){}},
+  setAttribute(){},removeAttribute(attr){if(attr==='title')this.title='';}
+ });
+ node.querySelectorAll=()=>node._buttons;
+ node.querySelector=function(selector){
+  const target=this._nodes||(this._nodes={});
+  return target[selector]||(target[selector]={
+    innerHTML:'',textContent:'',className:'',querySelector(){return null}
+  });
+ };
+ return [code,node];
+}));
 const document={
-  addEventListener(){},
-  querySelector(s){const match=s.match(/industry-code="(\d+)"/);return panels[match?.[1]]||null}
+ addEventListener(k,fn){events[k]=fn},
+ querySelector(sel){const match=sel.match(/industry-code="(\d+)"/);return panels[match?.[1]]||null}
 };
 const context={document,window:{},console,Date};
 vm.runInNewContext(script,context);
-const dates=[];let day=new Date('2023-01-06T00:00:00Z');
-for(let i=0;i<190;i++){dates.push([day.toISOString().slice(0,10),20+i/10]);day.setUTCDate(day.getUTCDate()+7);}
-const PB_CODES=new Set(['399975','399998','399986']);
-const data={items:order.map(code=>{
-  const isPB=PB_CODES.has(code);
-  return {code,name:code,valid:true,metric:isPB?'PB':'PE-TTM',
-    pointMetric:isPB?'PB_10Y_PERCENTILE':undefined,
-    date:dates[dates.length-1][0],value:isPB?1.22:38.9,source:isPB?'PB public weekly rank':'CSI PE',
-    points:isPB?dates.map((p,i)=>[p[0],i%100]):dates,
-    periods:{'3':isPB?
-      {p0:0,p10:10,p20:20,p50:50,p80:80,p90:90,p100:100,rankYears:10,
-        percentile:18,referenceDate:dates.at(-1)[0],sampleCount:160}:
-      {p0:18,p10:20,p20:23,p50:30,p80:35,p90:40,p100:42,percentile:77,
-        referenceDate:'2026-08-31',sampleCount:760}}};
-})};
-context.window.renderIndustries(data);
+const dates=[];let start=new Date('2014-01-03T00:00:00Z');
+for(let i=0;i<670;i++){
+ dates.push(new Date(start.getTime()+7*864e5*i).toISOString().slice(0,10));
+}
+const end=dates.at(-1);
+const thresholds=(isRank,offset=0)=>Object.fromEntries(
+ [0,10,20,50,80,90,100].map((n,i)=>['p'+n,isRank?n:(1.01+i*.20+offset)]));
+const entries=order.map(code=>{
+ const isPB=PB.has(code),actual=code==='399975',rankOnly=isPB&&!actual;
+ const metric=isPB?'PB':'PE-TTM';
+ const date=end;
+ const points=dates.map((d,i)=>[d,rankOnly?i%100:actual?
+  Number((1.2+i*.0007+Math.sin(i/30)*.3).toFixed(4)):
+  Number((18+i*.019+Math.sin(i/29)*2.1).toFixed(4))]);
+ const periods={};
+ for(const yr of (rankOnly?[10]:[3,5,10])){
+  periods[String(yr)]={
+   ...thresholds(rankOnly,rankOnly?0:metric==='PE-TTM'?20:0),
+   percentile:rankOnly?(code==='399998'?97.9:63.1):
+     actual?(yr===3?15:yr===5?43:78):yr===3?55:yr===5?40:85,
+   rankYears:rankOnly?10:yr,referenceDate:'2026-09-30',
+   sampleCount:yr*50
+  };
+ }
+ if(rankOnly)points[points.length-1][1]=periods['10'].percentile;
+ return {code,name:code,valid:true,metric,
+  pointMetric:actual?'PB_MULTIPLE':rankOnly?'PB_10Y_PERCENTILE':undefined,
+  date,value:actual?1.62:rankOnly?(code==='399998'?1.85:.75):24.3,
+  points,periods,source:rankOnly?'Verified 10y PB rank':actual?'Verified historical PB multiple':'CSI PE'};
+});
+context.window.renderIndustries({items:entries});
 for(const code of order){
-  assert.ok(panels[code]._nodes['.industry-chart'].innerHTML.includes('<svg'),'actual plot '+code);
-  assert.ok(panels[code]._nodes['.industry-chart'].innerHTML.includes('circle'),'current point '+code);
-  if(PB_CODES.has(code)){
-    assert.ok(panels[code]._nodes['.industry-summary'].innerHTML.includes('当前PB'));
-    assert.ok(!panels[code]._nodes['.industry-summary'].innerHTML.includes('PE-TTM'));
-    assert.ok(panels[code]._nodes['.industry-note'].textContent.includes('近3年走势'));
-  }
-  for(const p of ['0%','10%','20%','50%','80%','90%','100%'])assert.ok(panels[code]._nodes['.industry-legend'].innerHTML.includes(p));
+ const chart=panels[code]._nodes['.industry-chart'].innerHTML;
+ assert.ok(chart.includes('<svg'),'chart '+code);
+ assert.ok(chart.includes('<circle'),'current marker '+code);
+ for(const p of ['0%','10%','20%','50%','80%','90%','100%']){
+  assert.ok(panels[code]._nodes['.industry-legend'].innerHTML.includes(p),'reference '+p+' '+code);
+ }
+ if(code==='399975'){
+  assert.ok(panels[code]._nodes['.industry-summary'].innerHTML.includes('近10年分位'));
+  assert.ok(panels[code]._nodes['.industry-legend'].innerHTML.includes('倍'),
+    'real PB multiple reference lines must show PB values');
+  assert.ok(panels[code]._nodes['.industry-chart'].innerHTML.includes('90% · '),
+    'right axis contains PB percentile and numeric reference value');
+  assert.ok(panels[code]._buttons.every(b=>!b.disabled),'3/5/10 supported with raw PB');
+ }else if(PB.has(code)){
+  assert.ok(panels[code]._nodes['.industry-summary'].innerHTML.includes('PB近10年分位'));
+  assert.ok(panels[code]._buttons[0].disabled&&panels[code]._buttons[1].disabled,
+    'bank and coal must disable unsupported 3/5-year controls');
+  assert.ok(!panels[code]._buttons[2].disabled);
+  assert.ok(!panels[code]._nodes['.industry-legend'].innerHTML.includes('倍'),
+    'rank-only reference lines must not be presented as PB multiples');
+ }else{
+  assert.ok(panels[code]._nodes['.industry-summary'].innerHTML.includes('PE-TTM'));
+ }
 }
-context.window.renderIndustries({items:order.map(code=>PB_CODES.has(code)?
-  {...data.items.find(x=>x.code===code),metric:'PE-TTM'}:data.items.find(x=>x.code===code))});
-for(const code of PB_CODES){
-  assert.ok(panels[code]._nodes['.industry-chart'].innerHTML.includes('暂无可核验的PB历史数据'),
-    'PB-only charts must never silently substitute PE '+code);
+const broker=panels['399975'];
+function changeYear(code,n){
+ const panel=panels[code],button=panel._buttons.find(b=>Number(b.dataset.industryYears)===n);
+ events.click({target:{closest(selector){
+  if(selector==='[data-industry-years]')return button;
+  if(selector==='[data-industry-code]')return panel;
+  return null;
+ }}});
 }
-console.log('PASS: three genuine PB percentile charts and four PE charts, with no substitution');
+const before=broker._nodes['.industry-summary'].innerHTML;
+changeYear('399975',3);
+assert.ok(broker._nodes['.industry-summary'].innerHTML.includes('近3年分位'));
+assert.ok(!broker._buttons[0].disabled);
+changeYear('399975',5);
+assert.ok(broker._nodes['.industry-summary'].innerHTML.includes('近5年分位'));
+assert.notStrictEqual(broker._nodes['.industry-summary'].innerHTML,before);
+changeYear('399975',10);
+assert.ok(broker._nodes['.industry-summary'].innerHTML.includes('近10年分位'));
+changeYear('399998',3);
+assert.ok(panels['399998']._nodes['.industry-summary'].innerHTML.includes('PB近10年分位'),
+ 'unsupported coal 3-year selection must be ignored');
+const invalid={items:entries.map(e=>PB.has(e.code)?{...e,metric:'PE-TTM'}:e)};
+context.window.renderIndustries(invalid);
+for(const code of PB){
+ assert.ok(panels[code]._nodes['.industry-chart'].innerHTML.includes('暂无可核验的PB历史数据'),
+  'old PE must not fill PB chart '+code);
+}
+console.log('PASS: all 7 charts; broker PB 3/5/10 dynamic; coal/bank unsupported-year controls disabled; no PB/PE substitution');

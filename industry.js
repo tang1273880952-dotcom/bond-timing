@@ -14,7 +14,7 @@
   ];
   const PB_CODES=new Set(['399975','399998','399986']);
   const years={};
-  for (const [code] of CONFIG) years[code]=3;
+  for (const [code] of CONFIG) years[code]=PB_CODES.has(code)?10:3;
   let source=null;
   let sourceStatus=null;
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({
@@ -28,19 +28,39 @@
   function renderPanel(panel,entry){
     const code=panel.dataset.industryCode;
     const data=entry&&entry.code===code?entry:null;
-    const year=years[code];
+    const isPB=PB_CODES.has(code);
+    const multiplePB=isPB&&data?.metric==='PB'&&data?.pointMetric==='PB_MULTIPLE';
+    const rankOnlyPB=isPB&&data?.metric==='PB'&&data?.pointMetric==='PB_10Y_PERCENTILE';
+    // Never expose short-window buttons while only a fixed 10-year PB rank exists.
+    if(isPB&&!multiplePB)years[code]=10;
+    let year=years[code];
+    if(data?.valid===true&&data?.periods&&!data.periods[String(year)]){
+      const available=Object.keys(data.periods).map(Number).filter(Number.isFinite);
+      year=available.includes(10)?10:available[0]||year;
+      years[code]=year;
+    }
     panel.querySelectorAll('[data-industry-years]').forEach(button=>{
-      const active=Number(button.dataset.industryYears)===year;
+      const n=Number(button.dataset.industryYears);
+      const selectable=!isPB||multiplePB||n===10;
+      button.disabled=!selectable;
+      if(!selectable)button.title='缺少可核验的'+n+'年PB倍数历史，不能计算独立分位';
+      else button.removeAttribute('title');
+      const active=n===year;
       button.classList.toggle('active',active);
       button.setAttribute('aria-pressed',String(active));
     });
+    const heading=panel.querySelector('.chart-line-hint');
+    if(isPB&&heading){
+      heading.textContent=multiplePB?'PB真实历史倍数 · 分位参考值随3/5/10年变化':
+        'PB仅有10年历史分位 · 3/5年真实PB倍数暂缺';
+    }
     const summary=panel.querySelector('.industry-summary');
     const chart=panel.querySelector('.industry-chart');
     const legend=panel.querySelector('.industry-legend');
     const hover=panel.querySelector('.industry-hover');
     const note=panel.querySelector('.industry-note');
-    const isPB=PB_CODES.has(code);
-    const metric=isPB?'PB近10年历史分位':String(data?.metric||panel.dataset.metric||'PE-TTM');
+    const metric=isPB?(multiplePB?'PB':'PB近10年历史分位'):
+      String(data?.metric||panel.dataset.metric||'PE-TTM');
     const refreshFailed=sourceStatus?.success===false&&Boolean(sourceStatus?.errors?.[code]);
     const health=typeof window.dataHealth==='function'?
       window.dataHealth(data?.date,sourceStatus?
@@ -49,11 +69,11 @@
     note.className='industry-note'+(health.ok?'':' data-warning');
     const warning=!health.ok?' · '+health.label:
       (refreshFailed?' · 本次更新失败，沿用旧数据':'');
-    const verified=!isPB||(data?.metric==='PB'&&data?.pointMetric==='PB_10Y_PERCENTILE');
+    const verified=!isPB||multiplePB||rankOnlyPB;
     const all=verified&&Array.isArray(data?.points)?data.points.map(p=>({
       date:String(p[0]),t:time(p[0]),value:Number(p[1])
     })).filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.value)&&
-      (isPB?(p.value>=0&&p.value<=100):p.value>0)):[];
+      (rankOnlyPB?(p.value>=0&&p.value<=100):p.value>0)):[];
     const today=Number.isFinite(time(data?.date))?time(data.date):0;
     const begin=new Date(today);
     if(today)begin.setUTCFullYear(begin.getUTCFullYear()-year);
@@ -81,12 +101,12 @@
     summary.className='industry-summary tone-'+tone;
     summary.innerHTML=
       '<div class="industry-metric"><span>当前'+(isPB?'PB':'PE-TTM')+'</span><strong>'+fmt(data.value)+'<small> 倍</small></strong></div>'+
-      '<div class="industry-metric"><span>'+(isPB?'PB近10年分位':'近'+year+'年分位')+'</span><strong>'+fmt(period.percentile)+'<small>%</small></strong></div>'+
+      '<div class="industry-metric"><span>'+(rankOnlyPB?'PB近10年分位':'近'+year+'年分位')+'</span><strong>'+fmt(period.percentile)+'<small>%</small></strong></div>'+
       '<div class="industry-metric"><span>估值状态</span><strong class="industry-state">'+label+'</strong></div>';
-    const W=860,H=300,L=58,R=64,T=25,B=42,pW=W-L-R,pH=H-T-B;
+    const W=860,H=300,L=58,R=multiplePB?108:64,T=25,B=42,pW=W-L-R,pH=H-T-B;
     const vals=points.map(p=>p.value).concat(LEVELS.map(l=>Number(period[l[0]])));
-    const min=isPB?0:Math.min(...vals),max=isPB?100:Math.max(...vals);
-    const pad=isPB?0:Math.max(.2,(max-min)*.10);
+    const min=rankOnlyPB?0:Math.min(...vals),max=rankOnlyPB?100:Math.max(...vals);
+    const pad=rankOnlyPB?0:Math.max(.2,(max-min)*.10);
     const y1=min-pad,y2=max+pad;
     const x=t=>L+(t-low)/Math.max(1,today-low)*pW;
     const y=v=>T+(y2-v)/(y2-y1)*pH;
@@ -118,7 +138,8 @@
       svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy.toFixed(2)+'" y2="'+yy.toFixed(2)+
         '" stroke="'+item.color+'" stroke-width="1.5" stroke-dasharray="6 5"/>';
       svg+='<text x="'+(W-R+8)+'" y="'+item.ly.toFixed(2)+
-        '" fill="'+item.color+'" font-size="10">'+item.pct+'</text>';
+        '" fill="'+item.color+'" font-size="10">'+
+        (multiplePB?item.pct+' · '+fmt(period[item.key]):item.pct)+'</text>';
     }
     svg+='<path d="'+path+'" fill="none" stroke="#356bd4" stroke-width="2.5" stroke-linejoin="round"/>';
     svg+='<circle cx="'+endx.toFixed(2)+'" cy="'+endy.toFixed(2)+
@@ -128,7 +149,7 @@
     svg+='<rect x="'+tagX.toFixed(1)+'" y="'+tagY.toFixed(1)+
       '" width="109" height="22" rx="7" fill="#2f5ea8"/>';
     svg+='<text x="'+(tagX+7).toFixed(1)+'" y="'+(tagY+15).toFixed(1)+
-      '" fill="#fff" font-size="12">当前 '+fmt(last.value)+(isPB?'%':'倍')+'</text>';
+      '" fill="#fff" font-size="12">当前 '+fmt(last.value)+(rankOnlyPB?'%':'倍')+'</text>';
     const mid=new Date((low+today)/2).toISOString().slice(0,7);
     svg+='<text x="'+L+'" y="'+(H-11)+'" font-size="11" fill="#8190a5">'+
       new Date(low).toISOString().slice(0,7)+'</text>'+
@@ -141,12 +162,15 @@
     chart.innerHTML=svg;
     legend.innerHTML='<span class="legend-item"><i class="legend-line" style="--line:#356bd4;--dash:none"></i>'+escape(metric)+'实线</span>'+
       LEVELS.map(([key,pct,color])=>'<span class="legend-item"><i class="legend-line" style="--line:'+
-        color+'"></i>'+pct+(isPB?'':' · '+fmt(period[key])+'倍')+'</span>').join('');
-    note.textContent=(isPB?'当前PB '+fmt(data.value)+'倍 · 10年PB历史分位'+fmt(period.percentile)+'% · 近'+year+'年走势（分位基准固定10年） · ':'')+
-      '数据 '+data.date+' · '+period.sampleCount+'个'+(isPB?'周度':'交易日')+'样本 · '+data.source+
+        color+'"></i>'+pct+(rankOnlyPB?'':' · '+fmt(period[key])+'倍')+'</span>').join('');
+    note.textContent=(rankOnlyPB?'当前PB '+fmt(data.value)+'倍 · 10年PB历史分位'+fmt(period.percentile)+'%（3/5年不可计算） · ':
+      multiplePB?'当前PB '+fmt(data.value)+'倍 · 近'+year+'年真实PB分位 '+fmt(period.percentile)+'% · ':'')+
+      '数据 '+data.date+' · 参考截至 '+period.referenceDate+' · '+
+      period.sampleCount+'个'+(isPB?'周度':'交易日')+'样本 · '+data.source+
       (data.note?' · '+data.note:'')+
       warning;
-    hover.textContent=isPB?'历史曲线为PB十年分位（非历史PB倍数）':'移动或点击走势图查看历史估值';
+    hover.textContent=rankOnlyPB?'历史曲线仅为PB十年分位（非历史PB倍数）':
+      '移动或点击走势图查看'+(multiplePB?'真实PB倍数':'历史估值');
     const svgNode=chart.querySelector('svg');
     const cursor=chart.querySelector('.industry-cursor');
     if(!svgNode||!cursor)return;
@@ -161,7 +185,7 @@
       const cx=x(best.t).toFixed(2);
       cursor.setAttribute('x1',cx);cursor.setAttribute('x2',cx);
       cursor.setAttribute('visibility','visible');
-      hover.textContent=best.date+' · '+metric+' '+fmt(best.value)+(isPB?'%（非PB倍数）':'倍');
+      hover.textContent=best.date+' · '+metric+' '+fmt(best.value)+(rankOnlyPB?'%（非PB倍数）':'倍');
     }
     svgNode.addEventListener('pointermove',show);
     svgNode.addEventListener('pointerdown',show);
@@ -182,7 +206,12 @@
     if(!btn)return;
     const panel=btn.closest('[data-industry-code]');
     if(!panel)return;
-    years[panel.dataset.industryCode]=Number(btn.dataset.industryYears);
+    const code=panel.dataset.industryCode;
+    const next=Number(btn.dataset.industryYears);
+    const item=source?.items?.find(x=>x.code===code);
+    if(PB_CODES.has(code)&&item?.pointMetric!=='PB_MULTIPLE'&&next!==10)return;
+    if(!item?.periods?.[String(next)])return;
+    years[code]=next;
     render(source);
   });
   window.renderIndustries=render;

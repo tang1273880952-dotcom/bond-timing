@@ -41,7 +41,8 @@
     }
     const data=industries?.items?.find(x=>x.code===chart.key);
     const expectsPB=['399975','399998','399986'].includes(chart.key);
-    const verified=expectsPB?(data?.metric==='PB'&&data?.pointMetric==='PB_10Y_PERCENTILE'):
+    const verified=expectsPB?(data?.metric==='PB'&&
+      ['PB_MULTIPLE','PB_10Y_PERCENTILE'].includes(data?.pointMetric)):
       data?.metric==='PE-TTM';
     return {period:data?.periods?.[String(selectedYears(chart))],date:data?.date,
       isPB:expectsPB,valid:data?.valid===true&&verified};
@@ -102,7 +103,10 @@
       const [name,tone]=status(p,chart.kind);
       chip.dataset.tone=tone;
       chip.textContent=name+' · '+Math.round(p)+'%';
-      chip.title=(isPB?'PB近10年分位 '+p.toFixed(1)+'%，显示近'+selectedYears(chart)+'年走势':
+      const pbItem=isPB?current.industry?.items?.find(x=>x.code===chart.key):null;
+      const truePbYears=pbItem?.pointMetric==='PB_MULTIPLE';
+      chip.title=(isPB?(truePbYears?'近'+selectedYears(chart)+'年真实PB分位 '+p.toFixed(1)+'%':
+        'PB仅有近10年分位 '+p.toFixed(1)+'%（3/5年暂无真实PB倍数）'):
         '近'+selectedYears(chart)+'年历史分位 '+p.toFixed(1)+'%')+' · 数据 '+(date||'待核对')+
         (isPB?' · PB越低越便宜':chart.kind==='erp'?' · ERP越高越便宜':' · PE越低越便宜');
     }

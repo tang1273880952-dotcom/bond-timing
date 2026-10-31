@@ -90,16 +90,52 @@ class IndustryValuationTests(unittest.TestCase):
         self.assertEqual(item["pointMetric"],"PB_10Y_PERCENTILE")
         self.assertEqual(item["points"][-1][1],1.2)
         self.assertEqual(item["periods"]["10"]["rankYears"],10)
-        for years in ("3","5","10"):
-            self.assertIn(years,item["periods"])
-            self.assertEqual(item["periods"][years]["p0"],0)
-            self.assertEqual(item["periods"][years]["p100"],100)
-            self.assertEqual(item["periods"][years]["percentile"],1.2)
+        self.assertEqual(set(item["periods"]),{"10"})
+        self.assertEqual(item["periods"]["10"]["p0"],0)
+        self.assertEqual(item["periods"]["10"]["p100"],100)
+        self.assertEqual(item["periods"]["10"]["percentile"],1.2)
         self.assertNotIn("pe",item)
         with self.assertRaises(ValueError):
             industry.parse_public_pb_page(html,"399986","2026-10-30")
         with self.assertRaises(ValueError):
             industry.parse_public_pb_page(html.replace("1.11 近","11.11 近"),"399975","2026-11-30")
+
+    def test_actual_broker_historical_pb_has_independent_yearly_bands(self):
+        import math
+        dates=pd.date_range(end="2026-10-29",periods=685,freq="7D")
+        # Make 3-, 5-, 10-year windows have deliberately different PB
+        # distributions. This catches any accidental reuse of ten-year rank.
+        raw=[]
+        for d in dates:
+            y=(pd.Timestamp("2026-10-29")-d).days/365.25
+            value=(1.18+0.2*math.sin(len(raw)/21)
+                   if y<=3 else
+                   1.8+0.16*math.sin(len(raw)/17) if y<=5 else
+                   2.4+0.22*math.sin(len(raw)/19))
+            raw.append({"d":str(d.date()),"v":round(value,4)})
+        raw[-1]["v"]=1.80
+        payload={"index":{"code":"399975","date":"2026-10-29","pb":1.80},
+                 "series":{"pb":raw}}
+        item=industry.parse_guchacha_pb(payload,"399975","2026-10-31")
+        self.assertEqual(item["metric"],"PB")
+        self.assertEqual(item["pointMetric"],"PB_MULTIPLE")
+        self.assertEqual(item["value"],1.80)
+        self.assertEqual(set(item["periods"]),{"3","5","10"})
+        self.assertEqual(item["points"][-1][1],1.80)
+        ranks=[item["periods"][str(n)]["percentile"] for n in (3,5,10)]
+        self.assertNotEqual(len(set(ranks)),1,"selected PB ranks must change")
+        for yrs in (3,5,10):
+            period=item["periods"][str(yrs)]
+            self.assertEqual(period["rankYears"],yrs)
+            self.assertLess(period["p10"],period["p90"])
+            self.assertLess(period["p0"],period["p100"])
+            self.assertTrue(0<=period["percentile"]<=100)
+            self.assertTrue(period["referenceDate"]<"2026-10-01")
+        with self.assertRaises(ValueError):
+            industry.parse_guchacha_pb(payload,"399986","2026-10-31")
+        payload["series"]["pb"][-1]["v"]=5.4
+        with self.assertRaises(ValueError):
+            industry.parse_guchacha_pb(payload,"399975","2026-10-31")
 
     def test_missing_data_is_not_fabricated(self):
         with self.assertRaises(ValueError):

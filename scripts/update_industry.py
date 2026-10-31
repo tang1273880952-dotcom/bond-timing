@@ -31,6 +31,8 @@ SYMBOLS=[
 ]
 PB_PAGES={"399975":"zqgs","399998":"zzmt","399986":"zzyh"}
 PB_SOURCE="百分位 baifenwei.com · 指数PB近10年历史分位（每周）"
+PB_MULTIPLE_SOURCE="股叉叉 guchacha.com · 399975 指数整体市净率历史周度倍数"
+PB_MULTIPLE_URL="https://guchacha.com/api/index/valuation/399975"
 MIN_DAYS_PER_YEAR=150
 PERCENTILES=(0,10,20,50,80,90,100)
 
@@ -210,24 +212,22 @@ def parse_public_pb_page(html,code,today):
         raise ValueError("PB history endpoint and overview percentile disagree")
     if series[0][0]>latest-pd.DateOffset(years=9,months=6):
         raise ValueError("PB history does not cover approximately 10 years")
+    # The provider only publishes TEN-YEAR historical rankings, not past PB multiples.
+    # Do not expose 3/5-year selections with an unchanged ten-year percentile.
     periods={}
-    for years in (3,5,10):
-        fromdate=latest-pd.DateOffset(years=years)
-        visible=[v for d,v in series if d>=fromdate]
-        if len(visible)<years*42:
-            continue
-        # Ranking base remains the 10-year PB source percentile. The selectable
-        # year is a PLOT horizon only, not a recomputed PB-value distribution.
-        periods[str(years)]={"percentile":rank,"rankYears":10,
-            "sampleCount":len(visible),"referenceDate":str(latest.date()),
-            **{f"p{k}":float(k) for k in PERCENTILES}}
-    if "10" not in periods:raise ValueError("10y PB rank history not complete")
+    fromdate=latest-pd.DateOffset(years=10)
+    visible=[v for d,v in series if d>=fromdate]
+    if len(visible)<420:
+        raise ValueError("10y PB rank history not complete")
+    periods["10"]={"percentile":rank,"rankYears":10,
+        "sampleCount":len(visible),"referenceDate":str(latest.date()),
+        **{f"p{k}":float(k) for k in PERCENTILES}}
     name=next(n for c,n,metric in SYMBOLS if c==code)
     return {"code":code,"name":name,"valid":True,"metric":"PB",
         "date":str(latest.date()),"value":pb,"periods":periods,
         "points":[[str(d.date()),v] for d,v in series],
         "pointMetric":"PB_10Y_PERCENTILE","source":PB_SOURCE,
-        "note":"真实PB倍数仅有最新值；走势图为10年PB历史分位（非历年PB倍数）。3/5/10年只切换走势范围，分位口径始终为10年。"}
+        "note":"来源仅提供最新PB与每周10年PB分位，没有可核验的历史PB倍数；只显示10年视图，不伪造3/5年分位。"}
 
 def fetch_public_pb(code,today,session=None):
     sess=session or requests.Session()
@@ -237,6 +237,76 @@ def fetch_public_pb(code,today,session=None):
         "Accept":"text/html"})
     r.raise_for_status()
     return parse_public_pb_page(r.text,code,today)
+
+
+
+def parse_guchacha_pb(payload,code,today):
+    """Parse the public index-wide historical weekly PB *multiples*, not ranks.
+
+    Distinct providers' latest PB levels must NOT be joined to this timeline.
+    """
+    if code!="399975" or not isinstance(payload,dict):
+        raise ValueError("Guchacha provider only verified for broker index 399975")
+    head=payload.get("index") or {}
+    if str(head.get("code"))!=code:
+        raise ValueError("Index code mismatch in PB multiple source")
+    lastday=pd.Timestamp(head.get("date"))
+    if lastday>pd.Timestamp(today) or (pd.Timestamp(today)-lastday).days>9:
+        raise ValueError("Guchacha historic PB multiple snapshot stale")
+    current=float(head.get("pb"))
+    raw=(payload.get("series") or {}).get("pb")
+    if not isinstance(raw,list) or len(raw)<480:
+        raise ValueError("Guchacha historic PB multiples need >=480 observations")
+    rows=[]
+    for item in raw:
+        if not isinstance(item,dict):raise ValueError("PB history row not an object")
+        d=pd.to_datetime(item.get("d"),errors="coerce")
+        v=pd.to_numeric(item.get("v"),errors="coerce")
+        if pd.isna(d) or not pd.notna(v) or not (0.1<float(v)<30):
+            raise ValueError("Invalid historical PB multiple")
+        rows.append((pd.Timestamp(d).normalize(),float(v)))
+    if any(rows[i][0]>=rows[i+1][0] for i in range(len(rows)-1)):
+        raise ValueError("Duplicate/out-of-order PB multiple dates")
+    last=rows[-1]
+    if (lastday-last[0]).days>9 or (lastday-last[0]).days<0:
+        raise ValueError("Guchacha PB history endpoint date inconsistent")
+    if abs(current-last[1])>max(0.08,current*.06):
+        raise ValueError("Guchacha PB history and headline PB do not agree")
+    reference_end=lastday.to_period("M").start_time-pd.Timedelta(days=1)
+    periods={}
+    for years in (3,5,10):
+        start=reference_end-pd.DateOffset(years=years)
+        hist=[v for d,v in rows if start<=d<=reference_end]
+        histdates=[d for d,v in rows if start<=d<=reference_end]
+        if len(hist)<years*42 or not histdates or \
+                histdates[0]>start+pd.Timedelta(days=50) or \
+                histdates[-1]<reference_end-pd.Timedelta(days=15):
+            continue
+        values=pd.Series(hist)
+        bands={f"p{k}":round(float(values.quantile(k/100)),4)
+               for k in PERCENTILES}
+        periods[str(years)]={**bands,
+            "percentile":round(float(values.le(current).mean()*100),2),
+            "sampleCount":len(hist),
+            "referenceDate":str(histdates[-1].date()),
+            "rankYears":years}
+    if not all(str(year) in periods for year in (3,5,10)):
+        raise ValueError("Genuine PB series does not cover all 3/5/10-year windows")
+    return {"code":code,"name":"证券公司","valid":True,"metric":"PB",
+        "date":str(lastday.date()),"value":round(current,4),
+        "pointMetric":"PB_MULTIPLE",
+        "source":PB_MULTIPLE_SOURCE,
+        "points":[[str(d.date()),round(v,4)] for d,v in rows],
+        "periods":periods,
+        "note":"真实历史PB倍数；3/5/10年分位线使用对应年限、截止上一个完整自然月的历史样本独立计算。"}
+
+def fetch_guchacha_pb(code,today,session=None):
+    sess=session or requests.Session()
+    r=sess.get(PB_MULTIPLE_URL,timeout=30,headers={
+        "User-Agent":"Mozilla/5.0 (compatible; BondTimingResearch/1.0)",
+        "Accept":"application/json"})
+    r.raise_for_status()
+    return parse_guchacha_pb(r.json(),code,today)
 
 def main():
     OUT.mkdir(parents=True,exist_ok=True)
@@ -255,9 +325,12 @@ def main():
     results={}
     for code,name,preferred in order:
         try:
-            if code in PB_PAGES:
+            if code=="399975":
+                item=fetch_guchacha_pb(code,today)
+                print("Broker REAL PB MULTIPLES verified",code,item["date"],item["value"],flush=True)
+            elif code in PB_PAGES:
                 item=fetch_public_pb(code,today)
-                print("Industry PB rank verified",code,item["date"],item["value"],flush=True)
+                print("Industry TEN-YEAR PB rank verified",code,item["date"],item["value"],flush=True)
             else:
                 d=load_history(code,today)
                 item=build_index(code,name,preferred,d,today)
