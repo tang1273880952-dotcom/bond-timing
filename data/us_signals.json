@@ -1,16 +1,13 @@
 {
   "valid": true,
   "mode": "sp500-signals-v1",
-  "score": 31,
-  "coveredWeight": 70,
-  "missingWeight": 30,
-  "complete": false,
+  "score": 34,
+  "coveredWeight": 100,
+  "missingWeight": 0,
+  "complete": true,
   "asof": "2026-11-02",
-  "riskDataIncomplete": true,
-  "missingIndicators": [
-    "breadth",
-    "credit"
-  ],
+  "riskDataIncomplete": false,
+  "missingIndicators": [],
   "action": "等待 / 持有观察",
   "tone": "neutral",
   "confirmed": 0,
@@ -28,7 +25,7 @@
       "met": false
     }
   ],
-  "riskVeto": true,
+  "riskVeto": false,
   "indicators": {
     "erp": {
       "value": 1.67,
@@ -55,22 +52,23 @@
       "source": "Yahoo Finance ^GSPC · Wilder RSI(14)"
     },
     "breadth": {
-      "value": null,
+      "value": 66.93,
       "unit": "%",
-      "score": null,
+      "score": 1.92,
       "weight": 15,
-      "date": null,
-      "source": "S&P500成分股50日均线以上占比 · 历史接口待验证"
+      "date": "2026-11-02",
+      "source": "DeanFinancials GitHub · S&P500当前成分股50日均线上方占比",
+      "change5": 6.49
     },
     "credit": {
-      "value": null,
+      "value": 3.44,
       "unit": "%",
-      "score": null,
+      "score": 9.96,
       "weight": 15,
-      "date": null,
-      "source": "FRED: BAMLH0A0HYM2 · ICE BofA；暂时无法访问则不计算",
-      "change5": null,
-      "change20": null
+      "date": "2026-10-30",
+      "source": "FRED BAMLH0A0HYM2 · ICE BofA，经公开GitHub缓存",
+      "change5": 0.06,
+      "change20": 0.34
     },
     "trend": {
       "value": 7541.4,
@@ -1127,10 +1125,12 @@
       7541.4
     ]
   ],
-  "method": "六因子预设权重30/15/15/15/15/10，未核验来源不计分，按已核验权重折算100并单独显示覆盖率；数据缺失或信用利差不可用不触发买入观察。规则未经历史回测，不代表交易建议。ERP是月度指标，其余为日度指标。",
+  "method": "六因子预设权重30/15/15/15/15/10；采用真实S&P500当前成分股的50日均线广度，历史有成分变动偏差，不用于严格回测；高收益债OAS为真实ICE BofA数据经FRED公开缓存。任何来源缺失不计分并标注覆盖率，信用利差缺失停用买入信号；买卖规则未经回测。ERP为月度，其他日度。",
   "sources": [
     "https://finance.yahoo.com/quote/%5EGSPC/",
     "https://www.cboe.com/tradable_products/vix/vix_historical_data",
+    "https://github.com/DeanFinancials/deanfi-data",
+    "https://github.com/vincizh/market-fragility-dashboard",
     "https://fred.stlouisfed.org/series/BAMLH0A0HYM2"
   ]
 }

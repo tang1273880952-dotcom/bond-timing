@@ -1,11 +1,8 @@
 {
-  "attemptAt": "2026-11-03T20:24:53.181408+08:00",
+  "attemptAt": "2026-11-03T20:40:19.454803+08:00",
   "success": true,
   "date": "2026-11-02",
-  "coveredWeight": 70,
-  "partial": true,
-  "missingIndicators": [
-    "breadth",
-    "credit"
-  ]
+  "coveredWeight": 100,
+  "partial": false,
+  "missingIndicators": []
 }
