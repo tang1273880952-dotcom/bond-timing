@@ -114,3 +114,14 @@ AISC反映矿山维持经营成本，不是黄金价格底线或黄金内在价�
 - 修复标普500平盘时Wilder RSI误判为0的问题（平盘为50）；拒绝用收盘日晚于最新价格的VIX、信用利差或ERP做提前预测。
 - HY OAS至少要有约一年的真实日度观测才能纳入信用分位；缺失则不评分、暂停买入信号。页面区分“信用数据缺失”和“市场信用风险升高”。
 - 新增发布前审计：核对标普500信号的指标权重、覆盖分数、缺失值、信号日期和指数图终点。数据源与自动更新时间仍保持原设定。
+
+
+#### 免费数据接口再次核验（2026-11-03）
+
+已在GitHub Actions实际连通两条公开免费的JSON和CSV接口：
+
+- 市场宽度：https://raw.githubusercontent.com/DeanFinancials/deanfi-data/main/advance-decline/ma_percentage_historical.json 。S&P500当前成分股中站上50日均线占比，约300个日度历史观测；验证日期、口径、成分股人数与百分比一致性。由于历史可能使用当前股票名单，存在幸存者偏差，不能当作严格时点回测数据。
+- 信用利差：https://raw.githubusercontent.com/vincizh/market-fragility-dashboard/main/data/fred-cache/BAMLH0A0HYM2.csv 。真实FRED/ICE BofA高收益债OAS的公开CSV镜像，约850个日度记录，2026-11-03实测最新10月30日为3.44%。镜像不可用会尝试FRED原站，过期或数值非法就不计分。单位为百分数（%），不是基点（bp）。
+- Convex免费接口虽能获取JSON和CSV，但2026-11-03实测最新停在10月16日，不能当作实时信用来源，未接入生产评分。
+
+所有指标独立检验原始数值、数据日期和来源。停止更新即降低评分覆盖率，信用利差缺失时停止发出新的买入信号。原定自动更新时间不变。

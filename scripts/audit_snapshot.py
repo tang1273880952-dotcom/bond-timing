@@ -215,11 +215,20 @@ def audit_us_signals(payload):
     check(covered==payload.get("coveredWeight") and
           payload.get("missingWeight")==100-covered,
           "Signal coverage must equal actual nonmissing source weights")
-    check(covered>=70 and covered<=85,"Unverified market-breadth signal was scored")
+    check(covered>=70 and covered<=100,"Signal coverage is outside allowed 70-100 range")
     check(abs(round(scored/covered*100)-payload["score"])<=1,
           "US timing score arithmetic or weighting inconsistent")
-    check(indicators["breadth"]["value"] is None,
-          "Unverified S&P500 market breadth unexpectedly marked available")
+    breadth=indicators["breadth"]
+    if breadth.get("value") is not None:
+        check(0<=float(breadth["value"])<=100,
+              "S&P500 breadth must be measured in 0-100 percent")
+        check("DeanFinancials" in str(breadth.get("source")),
+              "S&P500 breadth provider is not the verified public market archive")
+        check(parsed_date(breadth["date"])<=parsed_date(payload["asof"]),
+              "Future S&P500 breadth was used for current market close")
+    check(payload.get("riskDataIncomplete")== (indicators["credit"]["value"] is None)
+          if "riskDataIncomplete" in payload else True,
+          "Credit-data completeness flag disagrees with actual availability")
     if indicators["credit"]["value"] is None:
         check(payload.get("riskVeto") is True,
               "Missing credit observations must veto buy signals")
@@ -244,7 +253,7 @@ def audit_us_signals(payload):
         last=parsed
     check(abs(float(prices[-1][1])-float(payload["latestPrice"]))<=.011,
           "US timing latest close disagrees with its plotted line")
-    for key in ("erp","vix","rsi","credit","trend"):
+    for key in ("erp","vix","rsi","breadth","credit","trend"):
         day=indicators[key].get("date")
         if day:
             check(parsed_date(day)<=parsed_date(payload["asof"]),

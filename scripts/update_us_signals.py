@@ -95,6 +95,75 @@ def fetch_vix():
         print("Cboe direct historical VIX unavailable, checking FRED:",str(exc)[:120],flush=True)
         return fetch_fred("VIXCLS",40)
 
+
+BREADTH_URL=("https://raw.githubusercontent.com/DeanFinancials/deanfi-data/"
+             "main/advance-decline/ma_percentage_historical.json")
+CREDIT_MIRROR_URL=("https://raw.githubusercontent.com/vincizh/market-fragility-dashboard/"
+                   "main/data/fred-cache/BAMLH0A0HYM2.csv")
+
+def parse_breadth_history(payload):
+    """Validate S&P 500 50-day constituent breadth from a public daily archive."""
+    metadata=payload.get("metadata",{}) if isinstance(payload,dict) else {}
+    if metadata.get("universe")!="S&P 500" or "yfinance" not in str(metadata.get("data_source","")).lower():
+        raise ValueError("Public MA breadth source is not S&P 500 universe")
+    raw=payload.get("data")
+    if not isinstance(raw,list) or len(raw)<100:
+        raise ValueError("Too few actual daily breadth observations")
+    rows=[]
+    for observation in raw:
+        d=pd.to_datetime(observation.get("date"),errors="coerce")
+        ma=observation.get("ma_50") or {}
+        value=pd.to_numeric(ma.get("percentage_above"),errors="coerce")
+        count=pd.to_numeric(ma.get("count_above"),errors="coerce")
+        if pd.isna(d) or pd.isna(value) or pd.isna(count) or not (0<=value<=100):
+            raise ValueError("Public S&P breadth missing date or valid MA50 fraction")
+        # The provider may list 503 member tickers but only 502 usable closes.
+        # Validate that the percentage reflects an S&P500-sized universe,
+        # instead of all US stocks or the Nasdaq-100.
+        if value>0 and not (450<=float(count)*100/float(value)<=530):
+            raise ValueError("Public S&P breadth count and percentage inconsistent")
+        rows.append((pd.Timestamp(d).normalize(),float(value)))
+    if any(rows[i][0]>=rows[i+1][0] for i in range(len(rows)-1)):
+        raise ValueError("Public S&P breadth timeline unordered")
+    frame=pd.DataFrame(rows,columns=["date","value"])
+    frame.attrs["provider"]="DeanFinancials GitHub · S&P500当前成分股50日均线上方占比"
+    return frame
+
+def fetch_breadth_public():
+    r=requests.get(BREADTH_URL,headers={"User-Agent":"Mozilla/5.0"},
+                   timeout=17)
+    r.raise_for_status()
+    return parse_breadth_history(r.json())
+
+def parse_credit_mirror_csv(csv):
+    """Real FRED BAMLH0A0HYM2 observations mirrored daily by a public repository."""
+    df=pd.read_csv(StringIO(csv))
+    if not {"observation_date","BAMLH0A0HYM2"}.issubset(df.columns):
+        raise ValueError("High yield OAS mirror has unexpected CSV fields")
+    f=df[["observation_date","BAMLH0A0HYM2"]].rename(
+        columns={"observation_date":"date","BAMLH0A0HYM2":"value"})
+    f["date"]=pd.to_datetime(f["date"],errors="coerce").dt.normalize()
+    f["value"]=pd.to_numeric(f["value"],errors="coerce")
+    f=f.dropna().reset_index(drop=True)
+    if len(f)<220 or not f.date.is_monotonic_increasing or f.date.duplicated().any() or not f.value.between(.25,30).all():
+        raise ValueError("Credit mirror historical coverage or numerical values invalid")
+    f.attrs["provider"]="FRED BAMLH0A0HYM2 · ICE BofA，经公开GitHub缓存"
+    return f
+
+def fetch_credit():
+    try:
+        r=requests.get(CREDIT_MIRROR_URL,headers={"User-Agent":"Mozilla/5.0"},
+                       timeout=17)
+        r.raise_for_status()
+        result=parse_credit_mirror_csv(r.text)
+        if (pd.Timestamp(datetime.now(ZoneInfo("America/New_York")).date())-
+            result.date.iloc[-1]).days>8:
+            raise ValueError("Public credit mirror is no longer up-to-date")
+        return result
+    except Exception as exc:
+        print("Public credit mirror failed; checking original FRED:",str(exc)[:180],flush=True)
+        return fetch_fred("BAMLH0A0HYM2",220)
+
 def rsi14(closes):
     """Wilder 14-period RSI computed from index *daily closing prices*."""
     series=pd.Series(closes,dtype="float64")
@@ -129,7 +198,7 @@ def row(f):
 
 def pct(x):return round(float(x),2)
 
-def build_model(price,vix,credit,us,asof):
+def build_model(price,vix,credit,us,asof,breadth=None):
     today=pd.Timestamp(asof).normalize()
     # Require enough observations to justify the reported one-year spread rank.
     credit_available=credit is not None and len(credit)>=220
@@ -137,6 +206,13 @@ def build_model(price,vix,credit,us,asof):
         raise ValueError("Daily S&P500 price or VIX history insufficient")
     pdte,close=row(price)
     vdte,vix_value=row(vix)
+    # Breadth is optional. An outdated current-constituent snapshot is missing,
+    # not a zero score. It must never be dated after the S&P 500 price close.
+    breadth_available=breadth is not None and len(breadth)>=40
+    bdte,breadth_value=row(breadth) if breadth_available else (None,None)
+    if breadth_available and not (0<=(pdte-bdte).days<=5 and 0<=breadth_value<=100):
+        breadth_available=False
+        bdte,breadth_value=None,None
     cdte,oas=row(credit) if credit_available else (None,None)
     providers=[("S&P500",pdte),("VIX",vdte)]
     if credit_available:providers.append(("HY OAS",cdte))
@@ -183,8 +259,11 @@ def build_model(price,vix,credit,us,asof):
     if credit_available:
         scores["credit"]=min(15,max(0,.10*percentile1y+
             (4 if oas5 is not None and oas5<=-.10 else 0)))
-    # A source of verifiable daily SP500 constituents breadth has not been connected.
-    # Never manufacture its 15 points or attribute a 100-point total to six signals.
+    if breadth_available:
+        # Contrarian BUY attractiveness: compressed breadth may create an
+        # opportunity, but still requires independent stabilization signals.
+        scores["breadth"]=interpolate(breadth_value,[
+            (0,15),(20,14),(30,12),(40,10),(50,7),(60,4),(70,1),(85,0),(100,0)])
     indicators={
       "erp":{"value":pct(erp_rank),"unit":"%分位","score":pct(scores["erp"]),"weight":30,
              "date":str(valuation_date.date()),"source":"已有标普500真实月度ERP十年分位"},
@@ -192,12 +271,17 @@ def build_model(price,vix,credit,us,asof):
              "date":str(vdte.date()),"source":vix_source},
       "rsi":{"value":pct(rsi_value),"unit":"","score":pct(scores["rsi"]),"weight":15,
              "date":str(pdte.date()),"source":price_source+" · Wilder RSI(14)"},
-      "breadth":{"value":None,"unit":"%","score":None,"weight":15,
-             "date":None,"source":"S&P500成分股50日均线以上占比 · 历史接口待验证"},
+      "breadth":{"value":pct(breadth_value) if breadth_available else None,
+             "unit":"%","score":pct(scores["breadth"]) if breadth_available else None,"weight":15,
+             "date":str(bdte.date()) if breadth_available else None,
+             "source":breadth.attrs.get("provider") if breadth_available else "公开S&P500市场宽度来源缺失",
+             "change5":pct(breadth_value-float(breadth.value.iloc[-6]))
+                if breadth_available and len(breadth)>=6 else None},
       "credit":{"value":pct(oas) if credit_available else None,
              "unit":"%","score":pct(scores["credit"]) if credit_available else None,"weight":15,
              "date":str(cdte.date()) if credit_available else None,
-             "source":"FRED: BAMLH0A0HYM2 · ICE BofA；暂时无法访问则不计算",
+             "source":credit.attrs.get("provider","FRED BAMLH0A0HYM2 · ICE BofA")
+                if credit_available else "FRED BAMLH0A0HYM2 · ICE BofA 暂不可用",
              "change5":pct(oas5) if oas5 is not None else None,"change20":pct(oas20) if oas20 is not None else None},
       "trend":{"value":pct(close),"unit":"点","score":pct(scores["trend"]),"weight":10,
              "date":str(pdte.date()),"source":price_source+" · MA50/MA200","ma20":pct(ma20),
@@ -228,13 +312,15 @@ def build_model(price,vix,credit,us,asof):
       "valid":True,"mode":"sp500-signals-v1","score":score,"coveredWeight":covered,
       "missingWeight":100-covered,"complete":covered==100,"asof":str(pdte.date()),
       "riskDataIncomplete":not credit_available,
-      "missingIndicators":["breadth"]+(["credit"] if not credit_available else []),
+      "missingIndicators":[k for k in WEIGHTS if k not in scores],
       "action":action,"tone":tone,"confirmed":confirmation_count,
       "confirmations":confirmed,"riskVeto":bool(risk_flag),
       "indicators":indicators,"latestPrice":pct(close),
       "priceHistory":[[str(r.date.date()),pct(r.value)] for r in recent.itertuples(index=False)],
-      "method":"六因子预设权重30/15/15/15/15/10，未核验来源不计分，按已核验权重折算100并单独显示覆盖率；数据缺失或信用利差不可用不触发买入观察。规则未经历史回测，不代表交易建议。ERP是月度指标，其余为日度指标。",
+      "method":"六因子预设权重30/15/15/15/15/10；采用真实S&P500当前成分股的50日均线广度，历史有成分变动偏差，不用于严格回测；高收益债OAS为真实ICE BofA数据经FRED公开缓存。任何来源缺失不计分并标注覆盖率，信用利差缺失停用买入信号；买卖规则未经回测。ERP为月度，其他日度。",
       "sources":["https://finance.yahoo.com/quote/%5EGSPC/","https://www.cboe.com/tradable_products/vix/vix_historical_data",
+                 "https://github.com/DeanFinancials/deanfi-data",
+                 "https://github.com/vincizh/market-fragility-dashboard",
                  "https://fred.stlouisfed.org/series/BAMLH0A0HYM2"]
     }
     return out
@@ -249,12 +335,18 @@ def main():
         price=fetch_price()
         vix=fetch_vix()
         try:
-            credit=fetch_fred("BAMLH0A0HYM2",220)
+            credit=fetch_credit()
         except Exception as exc:
-            print("HY OAS not reachable; keep credit weight missing and veto buy signals:",
+            print("HY OAS not reachable; credit missing and buy signals vetoed:",
                   str(exc)[:180],flush=True)
             credit=None
-        result=build_model(price,vix,credit,us,now.date())
+        try:
+            breadth=fetch_breadth_public()
+        except Exception as exc:
+            print("S&P500 constituent breadth not reachable; keeping this weight missing:",
+                  str(exc)[:180],flush=True)
+            breadth=None
+        result=build_model(price,vix,credit,us,now.date(),breadth=breadth)
         target.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8")
         status.update(success=True,date=result["asof"],coveredWeight=result["coveredWeight"],
                       partial=result["coveredWeight"]<100,missingIndicators=result["missingIndicators"])

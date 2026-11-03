@@ -82,8 +82,8 @@
     <div id="signal-chart" class="signal-chart"></div>
     <p id="signal-status" class="signal-foot">评分是研究性观察，不代表交易建议。</p>
     <details class="chart-help"><summary>指标来源与评分规则</summary>
-      <p class="chart-help-text">初始权重：ERP 30、VIX 15、RSI 15、市场宽度 15、HY OAS 15、MA50/MA200 10。市场宽度缺少经核验的免费接口时标示缺失；信用利差若不可用也显示缺失并停用买入信号。按可用来源权重（85或70）折算百分评分，单独显示实际覆盖率。高分须结合RSI反转、短线价格趋势和利差收窄等企稳确认；信用风险急升时禁止触发买入观察信号。RSI使用标普500日度收盘价按Wilder(14)计算；ERP是月度数据，其余为日度数据。阈值尚未严格历史回测，不能代表买卖胜率或未来收益。</p>
-      <p class="chart-help-text">来源：FRED SP500、VIXCLS（Cboe）、BAMLH0A0HYM2（ICE BofA）和本站已核验的月度标普500 ERP。指数价格曲线不展示未经时点回测的历史买卖标记；最新MA50/MA200只作为水平参考，不等于历史均线轨迹。</p>
+      <p class="chart-help-text">初始权重：ERP 30、VIX 15、RSI 15、市场宽度 15、HY OAS 15、MA50/MA200 10。标普500市场宽度使用公开的每日成分股50日均线数据，HY OAS使用FRED原始信用利差的公开历史缓存；分别验证日期与样本后参与评分。只有缺失时才按实际可用权重折算，并标示覆盖率，信用利差缺失时暂停买入信号。高分须结合RSI反转、短线价格趋势和利差收窄等企稳确认；信用风险急升时禁止触发买入观察信号。RSI使用标普500日度收盘价按Wilder(14)计算；ERP是月度数据，其余为日度数据。阈值尚未严格历史回测，不能代表买卖胜率或未来收益。</p>
+      <p class="chart-help-text">来源：标普500日线采用Yahoo ^GSPC（故障时FRED）、VIX为Cboe、宽度为 <a href="https://github.com/DeanFinancials/deanfi-data" target="_blank" rel="noopener noreferrer">DeanFinancials公开日度数据</a>；信用利差为 <a href="https://github.com/vincizh/market-fragility-dashboard" target="_blank" rel="noopener noreferrer">FRED BAMLH0A0HYM2的GitHub缓存</a>（ICE BofA），原始序列见 <a href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" rel="noopener noreferrer">FRED</a>。如公开缓存停止更新，将标示缺失。成分股历史使用当前股票集合，存在幸存者偏差；评分规则尚未严格历史回测。指数价格曲线不绘制未经验证的历史买卖点，最新MA50/MA200为水平参考值。</p>
     </details>
   </section>
 

@@ -62,6 +62,55 @@ class USSignalsTest(unittest.TestCase):
         self.assertEqual(d["coveredWeight"],70)
         self.assertTrue(d["riskVeto"])
 
+    def test_free_snp_breadth_and_hy_mirror_have_real_inputs(self):
+        import math
+        dates=pd.bdate_range(end="2026-10-30",periods=250)
+        breadth_doc={"metadata":{"universe":"S&P 500","data_source":"Yahoo Finance (yfinance)"},
+           "data":[{"date":str(d.date()),"ma_50":{"count_above":336,
+                  "percentage_above":66.93}} for d in dates]}
+        breadth=m.parse_breadth_history(breadth_doc)
+        self.assertEqual(len(breadth),250)
+        self.assertEqual(breadth["value"].iloc[-1],66.93)
+        rows=["observation_date,BAMLH0A0HYM2"]+[
+          f"{str(d.date())},{round(3.0+0.20*math.sin(i/21),4)}"
+          for i,d in enumerate(dates)]
+        credit=m.parse_credit_mirror_csv("\n".join(rows))
+        self.assertEqual(len(credit),250)
+        self.assertIn("FRED",credit.attrs["provider"])
+        price,vix,_,us=self.setup_data()
+        model=m.build_model(price,vix,credit,us,asof="2026-11-03",breadth=breadth)
+        self.assertEqual(model["coveredWeight"],100)
+        self.assertEqual(model["missingWeight"],0)
+        self.assertEqual(model["missingIndicators"],[])
+        self.assertTrue(model["complete"])
+        self.assertFalse(model["riskDataIncomplete"])
+        self.assertEqual(model["indicators"]["breadth"]["value"],66.93)
+        self.assertIsNotNone(model["indicators"]["breadth"]["score"])
+        self.assertIsNotNone(model["indicators"]["credit"]["score"])
+        self.assertEqual(model["indicators"]["breadth"]["date"],"2026-10-30")
+
+    def test_invalid_or_stale_breadth_cannot_be_fabricated(self):
+        dates=pd.bdate_range(end="2026-10-30",periods=160)
+        doc={"metadata":{"universe":"S&P 500","data_source":"Yahoo Finance (yfinance)"},
+              "data":[{"date":str(d.date()),"ma_50":{"count_above":340,
+                       "percentage_above":67.73}} for d in dates]}
+        with self.assertRaises(ValueError):
+            bad=dict(doc,metadata={"universe":"NASDAQ-100","data_source":"yfinance"})
+            m.parse_breadth_history(bad)
+        with self.assertRaises(ValueError):
+            bad=dict(doc,data=doc["data"][:-1]+[{"date":"2026-10-30","ma_50":
+                {"count_above":340,"percentage_above":1}}])
+            m.parse_breadth_history(bad)
+        breadth=m.parse_breadth_history(doc)
+        price,vix,credit,us=self.setup_data()
+        old=breadth.iloc[:-15].copy()
+        model=m.build_model(price,vix,credit,us,asof="2026-11-03",breadth=old)
+        self.assertEqual(model["coveredWeight"],85)
+        self.assertIn("breadth",model["missingIndicators"])
+        # A malformed historic OAS export cannot be silently scored.
+        with self.assertRaises(ValueError):
+            m.parse_credit_mirror_csv("observation_date,wrong\n2026-10-30,3.44\n")
+
     def test_future_or_stale_sources_are_refused(self):
         a=list(self.setup_data())
         with self.assertRaises(ValueError):
