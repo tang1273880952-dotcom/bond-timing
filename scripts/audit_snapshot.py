@@ -133,8 +133,13 @@ def audit_industries(payload):
         for years,p in item["periods"].items():
             check(years in ("3","5","10"),f"{code}: unsupported time horizon")
             reference=parsed_date(p["referenceDate"])
-            start=subtract_years(reference,int(years))
-            sample=[v for d,v in history if start<=d<=reference]
+            # Model ranges start from the CALENDAR month-end, not the last
+            # trading date (e.g. October 31 versus October 30). Reconstruct
+            # the same boundary before auditing the real cached observations.
+            nextmonth=(reference.replace(day=28)+timedelta(days=4)).replace(day=1)
+            calendar_end=nextmonth-timedelta(days=1)
+            start=subtract_years(calendar_end,int(years))
+            sample=[v for d,v in history if start<=d<=calendar_end]
             check(len(sample)==p["sampleCount"] and len(sample)>=int(years)*150,
                   f"{code}: historical sample count differs from source cache")
             for pct in PCTS:
