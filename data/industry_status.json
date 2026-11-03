@@ -1,8 +1,6 @@
 {
-  "attemptAt": "2026-11-03T19:58:01.103003+08:00",
-  "success": false,
+  "attemptAt": "2026-11-03T20:24:25.515522+08:00",
+  "success": true,
   "usableCount": 7,
-  "errors": {
-    "399975": "Guchacha historic PB multiples need >=480 observations"
-  }
+  "errors": {}
 }
