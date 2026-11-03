@@ -9,6 +9,7 @@ urls={
 "credit_convex_metrics":"https://convextrade.com/api/public/metrics/bamlh0a0hym2",
 "credit_railway":"https://convex-trading-production.up.railway.app/api/public/data/BAMLH0A0HYM2?start=2025-01-01",
 "credit_fred":"https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAMLH0A0HYM2&cosd=2025-01-01",
+"credit_github":"https://raw.githubusercontent.com/vincizh/market-fragility-dashboard/main/data/fred-cache/BAMLH0A0HYM2.csv",
 }
 def test(name,url):
  try:
