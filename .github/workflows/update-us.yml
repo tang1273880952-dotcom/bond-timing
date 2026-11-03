@@ -97,4 +97,8 @@ jobs:
           gold=json.loads(Path("data/gold_status.json").read_text(encoding="utf-8"))
           if gold.get("success") is not True:
               raise SystemExit("Gold refresh failed: " + str(gold.get("error","unknown")))
+          signals=json.loads(Path("data/us_signals_status.json").read_text(encoding="utf-8"))
+          if signals.get("success") is not True:
+              raise SystemExit("Daily S&P 500 signals update failed: " + str(signals.get("error","unknown")))
+          print("Daily S&P 500 timing signals verified, factor weight:", signals.get("coveredWeight"))
           PY
