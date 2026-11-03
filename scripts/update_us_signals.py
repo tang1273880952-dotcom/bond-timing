@@ -136,7 +136,7 @@ def build_model(price,vix,credit,us,asof):
         if age<0 or age>8:raise ValueError(f"{name}: stale or future close ({dt.date()})")
     if abs((pdte-vdte).days)>6 or (credit_available and abs((pdte-cdte).days)>7):
         raise ValueError("Daily signals are not from comparable trading dates")
-    if not (100<close<100000 and 5<vix_value<120) or
+    if (not (100<close<100000 and 5<vix_value<120) or
             (credit_available and not (.25<oas<30))):
         raise ValueError("Unreasonable raw SP500, VIX or HY OAS values")
     if us.get("mode")!="live" or us.get("id")!="sp500":
