@@ -82,8 +82,12 @@ class USAudit(unittest.TestCase):
             return yields.rename(columns={"yield10":col}) if col=="yield10" else prices
         with patch.object(m,"get_pe",return_value=pe),patch.object(m,"monthly_table",side_effect=table):
             result=m.calculate()
-        self.assertEqual(result["yieldDate"],str(end.date()))
-        self.assertEqual(result["metrics"][6][1],str(end.date()))
+        # The newest PE is labelled on the 15th; before that date, the
+        # newest legitimately matchable month is the previous month.
+        available=months[(months+pd.Timedelta(days=14))<=now]
+        expected=available[-1]
+        self.assertEqual(result["yieldDate"],str(expected.date()))
+        self.assertEqual(result["metrics"][6][1],str(expected.date()))
         self.assertAlmostEqual(float(result["metrics"][2][1].rstrip("%")),
                                100/26-4.5,places=2)
         self.assertNotIn("9.9",str(result["metrics"]))
