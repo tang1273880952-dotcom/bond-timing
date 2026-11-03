@@ -240,7 +240,7 @@ def fetch_public_pb(code,today,session=None):
 
 
 
-def parse_guchacha_pb(payload,code,today):
+def parse_guchacha_pb(payload,code,today,existing=None):
     """Parse the public index-wide historical weekly PB *multiples*, not ranks.
 
     Distinct providers' latest PB levels must NOT be joined to this timeline.
@@ -255,8 +255,8 @@ def parse_guchacha_pb(payload,code,today):
         raise ValueError("Guchacha historic PB multiple snapshot stale")
     current=float(head.get("pb"))
     raw=(payload.get("series") or {}).get("pb")
-    if not isinstance(raw,list) or len(raw)<480:
-        raise ValueError("Guchacha historic PB multiples need >=480 observations")
+    if not isinstance(raw,list) or len(raw)<10:
+        raise ValueError("Guchacha returned fewer than ten PB observations")
     rows=[]
     for item in raw:
         if not isinstance(item,dict):raise ValueError("PB history row not an object")
@@ -267,6 +267,27 @@ def parse_guchacha_pb(payload,code,today):
         rows.append((pd.Timestamp(d).normalize(),float(v)))
     if any(rows[i][0]>=rows[i+1][0] for i in range(len(rows)-1)):
         raise ValueError("Duplicate/out-of-order PB multiple dates")
+    # The live source may return only recent weekly PBs. Extend them with
+    # previously verified observations from the SAME index/provider only.
+    if len(rows)<480 and isinstance(existing,dict) and \
+            existing.get("code")==code and \
+            existing.get("pointMetric")=="PB_MULTIPLE" and \
+            existing.get("source")==PB_MULTIPLE_SOURCE and \
+            isinstance(existing.get("points"),list):
+        earlier=[(pd.Timestamp(d),float(v)) for d,v in existing["points"]]
+        if any(earlier[i][0]>=earlier[i+1][0] for i in range(len(earlier)-1)):
+            raise ValueError("Cached PB observations unordered")
+        if not all(.1<v<30 for _,v in earlier):
+            raise ValueError("Cached PB observations invalid")
+        earlier_by_day={d:v for d,v in earlier}
+        overlap=[(v,earlier_by_day[d]) for d,v in rows if d in earlier_by_day]
+        if len(overlap)<3:
+            raise ValueError("Cannot merge truncated PB: fewer than 3 matching dates")
+        if any(abs(v0-v1)>max(.08,.08*v1) for v0,v1 in overlap):
+            raise ValueError("Provider historical PB overlap disagrees with cached observations")
+        rows=[(d,v) for d,v in earlier if d<rows[0][0]]+rows
+    if len(rows)<480:
+        raise ValueError(f"Insufficient genuine PB history: {len(rows)} observations")
     last=rows[-1]
     if (lastday-last[0]).days>9 or (lastday-last[0]).days<0:
         raise ValueError("Guchacha PB history endpoint date inconsistent")
@@ -300,13 +321,13 @@ def parse_guchacha_pb(payload,code,today):
         "periods":periods,
         "note":"真实历史PB倍数；3/5/10年分位线使用对应年限、截止上一个完整自然月的历史样本独立计算。"}
 
-def fetch_guchacha_pb(code,today,session=None):
+def fetch_guchacha_pb(code,today,session=None,existing=None):
     sess=session or requests.Session()
     r=sess.get(PB_MULTIPLE_URL,timeout=30,headers={
         "User-Agent":"Mozilla/5.0 (compatible; BondTimingResearch/1.0)",
         "Accept":"application/json"})
     r.raise_for_status()
-    return parse_guchacha_pb(r.json(),code,today)
+    return parse_guchacha_pb(r.json(),code,today,existing=existing)
 
 def main():
     OUT.mkdir(parents=True,exist_ok=True)
@@ -326,7 +347,7 @@ def main():
     for code,name,preferred in order:
         try:
             if code=="399975":
-                item=fetch_guchacha_pb(code,today)
+                item=fetch_guchacha_pb(code,today,existing=old.get(code))
                 print("Broker REAL PB MULTIPLES verified",code,item["date"],item["value"],flush=True)
             elif code in PB_PAGES:
                 item=fetch_public_pb(code,today)
@@ -337,12 +358,13 @@ def main():
                 print("Industry PE verified",code,item["date"],list(item["periods"]),flush=True)
             results[code]=item
         except Exception as exc:
-            print("Industry PE failed",code,repr(exc),flush=True)
+            print("Industry source failed",code,repr(exc),flush=True)
             problems[code]=str(exc)[:240]
             if code in old and (code not in PB_PAGES or old[code].get("metric")=="PB"):
-                item=old[code]
+                item=dict(old[code])
                 item["stale"]=True
-                item["note"]=(item.get("note","")+" · 当前刷新失败，沿用上次真实数据").strip(" ·")
+                original_note=item.get("note","").split(" · 当前刷新失败")[0].rstrip(" ·")
+                item["note"]=(original_note+" · 当前刷新失败，沿用上次真实数据").strip(" ·")
                 results[code]=item
             else:
                 results[code]={"code":code,"name":name,"valid":False,

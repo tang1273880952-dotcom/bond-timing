@@ -190,6 +190,68 @@ def audit_us_history(payload):
     for day,close in history.get("indexClose",{}).get("points",[]):
         check(parsed_date(day)<=end and math.isfinite(close) and close>0,"US index overlay invalid")
 
+def audit_us_signals(payload):
+    """Verify the 6-factor snapshot without assuming missing sources are zero."""
+    check(payload.get("mode")=="sp500-signals-v1","US timing mode changed")
+    if payload.get("valid") is not True:
+        print("WARN: US timing signals not yet verified; no simulated score published")
+        return
+    indicators=payload.get("indicators",{})
+    weights={"erp":30,"vix":15,"rsi":15,"breadth":15,"credit":15,"trend":10}
+    check(set(indicators)==set(weights),"US signal indicators not the expected six")
+    covered=0; scored=0
+    for key,weight in weights.items():
+        indicator=indicators[key]
+        check(indicator.get("weight")==weight,f"{key}: wrong signal model weight")
+        value=indicator.get("value")
+        score=indicator.get("score")
+        if value is None or score is None:
+            check(value is None and score is None,f"{key}: half-populated source")
+            continue
+        check(all(math.isfinite(float(x)) for x in (value,score)),
+              f"{key}: non-finite indicator value")
+        check(0<=float(score)<=weight,f"{key}: score outside allocated weight")
+        covered+=weight;scored+=float(score)
+    check(covered==payload.get("coveredWeight") and
+          payload.get("missingWeight")==100-covered,
+          "Signal coverage must equal actual nonmissing source weights")
+    check(covered>=70 and covered<=85,"Unverified market-breadth signal was scored")
+    check(abs(round(scored/covered*100)-payload["score"])<=1,
+          "US timing score arithmetic or weighting inconsistent")
+    check(indicators["breadth"]["value"] is None,
+          "Unverified S&P500 market breadth unexpectedly marked available")
+    if indicators["credit"]["value"] is None:
+        check(payload.get("riskVeto") is True,
+              "Missing credit observations must veto buy signals")
+        check(payload.get("action") not in ("试探性观察买入","关注分批买入"),
+              "Buy signal emitted without credit-risk data")
+    if "missingIndicators" in payload:
+        missing=[k for k in weights if indicators[k]["score"] is None]
+        check(set(missing)==set(payload["missingIndicators"]),
+              "US signal missing-indicator metadata disagrees with actual values")
+    check(sum(bool(x.get("met")) for x in payload.get("confirmations",[]))==
+          payload.get("confirmed") and len(payload.get("confirmations",[]))==3,
+          "US timing stop-loss / stabilization confirmations inconsistent")
+    prices=payload.get("priceHistory",[])
+    check(len(prices)>=200 and prices[-1][0]==payload.get("asof"),
+          "US timing price series incomplete or has a different last date")
+    last=None
+    for day,value in prices:
+        parsed=parsed_date(day)
+        check(last is None or parsed>last,"US timing prices unordered or duplicated")
+        check(math.isfinite(float(value)) and float(value)>0,
+              "US timing price history contains invalid values")
+        last=parsed
+    check(abs(float(prices[-1][1])-float(payload["latestPrice"]))<=.011,
+          "US timing latest close disagrees with its plotted line")
+    for key in ("erp","vix","rsi","credit","trend"):
+        day=indicators[key].get("date")
+        if day:
+            check(parsed_date(day)<=parsed_date(payload["asof"]),
+                  f"{key}: future indicator observation entered earlier close")
+    print(f"OK S&P500 timing: {covered}/100 verified weight; dates and formula checked")
+
+
 def audit_gold(payload):
     check(payload.get("mode")=="gold-aisc-v1" and payload.get("valid") is True,
           "Gold snapshot is not a verified cost-reference model")
@@ -237,7 +299,8 @@ def main():
     us=read_json("us_latest.json")
     industry=read_json("industry_latest.json")
     gold=read_json("gold_latest.json")
-    for name in ("status.json","us_status.json","industry_status.json","gold_status.json"):
+    signals=read_json("us_signals.json")
+    for name in ("status.json","us_status.json","industry_status.json","gold_status.json","us_signals_status.json"):
         read_json(name)
     check(latest.get("mode")=="live", "China market snapshot is invalid")
     assets=latest.get("assets",[])
@@ -279,6 +342,7 @@ def main():
               f"{chart_erp:.2f}% (different PE providers)")
     audit_industries(industry)
     audit_us_history(us)
+    audit_us_signals(signals)
     audit_gold(gold)
     for name,payload in (("China",latest),("US",us),("Industry",industry)):
         dt=payload.get("generatedAt") or payload.get("generatedAt",None)

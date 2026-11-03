@@ -25,6 +25,9 @@ class USSignalsTest(unittest.TestCase):
         self.assertAlmostEqual(result[14],100)
         self.assertTrue(all(0<=x<=100 for x in result[14:]))
         self.assertEqual(len(result),60)
+        self.assertTrue(all(v==50 for v in m.rsi14([100.0]*60)[14:]),
+                        "No price changes must produce neutral RSI50")
+        self.assertTrue(all(v==0 for v in m.rsi14([100-i for i in range(60)])[14:]))
     def test_stable_no_invented_breadth_and_score_coverage(self):
         d=m.build_model(*self.setup_data(),asof="2026-11-03")
         self.assertTrue(d["valid"])
@@ -47,10 +50,17 @@ class USSignalsTest(unittest.TestCase):
         d=m.build_model(price,vix,None,us,asof="2026-11-03")
         self.assertEqual(d["coveredWeight"],70)
         self.assertEqual(d["missingWeight"],30)
+        self.assertTrue(d["riskDataIncomplete"])
+        self.assertIn("credit",d["missingIndicators"])
         self.assertIsNone(d["indicators"]["credit"]["score"])
         self.assertIsNone(d["indicators"]["credit"]["value"])
         self.assertTrue(d["riskVeto"])
         self.assertNotIn(d["action"],["试探性观察买入","关注分批买入"])
+        # Fewer than ~one-year daily credit observations must not be
+        # presented as a one-year historical spread percentile.
+        d=m.build_model(price,vix,credit.tail(50),us,asof="2026-11-03")
+        self.assertEqual(d["coveredWeight"],70)
+        self.assertTrue(d["riskVeto"])
 
     def test_future_or_stale_sources_are_refused(self):
         a=list(self.setup_data())
@@ -62,6 +72,20 @@ class USSignalsTest(unittest.TestCase):
         a=list(self.setup_data());a[3]["history"]["periods"]["10"]["percentile"]=None
         with self.assertRaises(ValueError):
             m.build_model(*a,asof="2026-11-03")
+    def test_future_vix_credit_or_erp_cannot_leak_into_prior_close(self):
+        price,vix,credit,us=self.setup_data()
+        vix.loc[vix.index[-1],"date"]=pd.Timestamp("2026-11-02")
+        with self.assertRaises(ValueError):
+            m.build_model(price,vix,credit,us,asof="2026-11-03")
+        price,vix,credit,us=self.setup_data()
+        credit.loc[credit.index[-1],"date"]=pd.Timestamp("2026-11-02")
+        with self.assertRaises(ValueError):
+            m.build_model(price,vix,credit,us,asof="2026-11-03")
+        price,vix,credit,us=self.setup_data()
+        us["valuationDate"]="2026-11-02"
+        with self.assertRaises(ValueError):
+            m.build_model(price,vix,credit,us,asof="2026-11-03")
+
     def test_no_trade_signal_on_single_vix_extreme(self):
         price,vix,credit,us=self.setup_data()
         vix["value"]=42.0

@@ -35,6 +35,7 @@ def fetch_fred(series,min_rows=40):
     f=f.dropna().sort_values("date").drop_duplicates("date",keep="last").reset_index(drop=True)
     if len(f)<min_rows or not f.date.is_monotonic_increasing:
         raise ValueError(series+": inadequate real EOD history")
+    f.attrs["provider"]="FRED "+series
     return f
 
 
@@ -62,6 +63,7 @@ def fetch_price_yahoo():
     frame=pd.DataFrame(rows,columns=["date","value"]).sort_values("date")
     frame=frame.drop_duplicates("date",keep="last").reset_index(drop=True)
     if len(frame)<230:raise ValueError("Yahoo S&P500 daily history incomplete")
+    frame.attrs["provider"]="Yahoo Finance ^GSPC"
     return frame
 
 def fetch_vix_cboe():
@@ -78,6 +80,7 @@ def fetch_vix_cboe():
     f=f.dropna().sort_values("date").drop_duplicates("date",keep="last")
     f=f.reset_index(drop=True)
     if len(f)<40:raise ValueError("Cboe VIX historical close missing")
+    f.attrs["provider"]="Cboe VIX daily close"
     return f
 
 def fetch_price():
@@ -106,7 +109,12 @@ def rsi14(closes):
         if idx>14:
             avg_gain=(avg_gain*13+gain.iloc[idx])/14
             avg_loss=(avg_loss*13+loss.iloc[idx])/14
-        output[idx]=100.0 if avg_loss==0 else 100-100/(1+avg_gain/avg_loss)
+        if avg_loss==0:
+            output[idx]=50.0 if avg_gain==0 else 100.0
+        elif avg_gain==0:
+            output[idx]=0.0
+        else:
+            output[idx]=100-100/(1+avg_gain/avg_loss)
     return output
 
 def interpolate(value,knots):
@@ -123,7 +131,8 @@ def pct(x):return round(float(x),2)
 
 def build_model(price,vix,credit,us,asof):
     today=pd.Timestamp(asof).normalize()
-    credit_available=credit is not None and len(credit)>=40
+    # Require enough observations to justify the reported one-year spread rank.
+    credit_available=credit is not None and len(credit)>=220
     if len(price)<230 or len(vix)<40:
         raise ValueError("Daily S&P500 price or VIX history insufficient")
     pdte,close=row(price)
@@ -134,8 +143,12 @@ def build_model(price,vix,credit,us,asof):
     for name,dt in providers:
         age=(today-dt).days
         if age<0 or age>8:raise ValueError(f"{name}: stale or future close ({dt.date()})")
-    if abs((pdte-vdte).days)>6 or (credit_available and abs((pdte-cdte).days)>7):
-        raise ValueError("Daily signals are not from comparable trading dates")
+    # Never use a VIX or spread observation dated AFTER the price close.
+    # Recent lagged provider observations are allowed, not future data.
+    vix_lag=(pdte-vdte).days
+    credit_lag=(pdte-cdte).days if credit_available else 0
+    if not (0<=vix_lag<=4) or (credit_available and not (0<=credit_lag<=7)):
+        raise ValueError("Daily source observation leads price or is too old")
     if (not (100<close<100000 and 5<vix_value<120) or
             (credit_available and not (.25<oas<30))):
         raise ValueError("Unreasonable raw SP500, VIX or HY OAS values")
@@ -145,7 +158,7 @@ def build_model(price,vix,credit,us,asof):
     period=months.get("10",{})
     erp_rank=period.get("percentile")
     valuation_date=pd.Timestamp(us.get("valuationDate"))
-    if (today-valuation_date).days>48 or not isinstance(erp_rank,(int,float)) or not 0<=erp_rank<=100:
+    if valuation_date>pdte or (today-valuation_date).days>48 or not isinstance(erp_rank,(int,float)) or not 0<=erp_rank<=100:
         raise ValueError("10-year real monthly ERP rank missing or too old")
     last=price.value.astype(float).to_list()
     rsi=rsi14(last)
@@ -159,6 +172,8 @@ def build_model(price,vix,credit,us,asof):
     oas20=oas-prior20 if prior20 is not None else None
     percentile1y=round(100*float((credit.value.iloc[-253:]<=oas).mean()),2) if credit_available else None
 
+    price_source=price.attrs.get("provider","标普500指数收盘价（来源未标记）")
+    vix_source=vix.attrs.get("provider","VIX收盘价（来源未标记）")
     scores={
       "erp":30*erp_rank/100,
       "vix":interpolate(vix_value,[(12,0),(16,2),(20,5),(25,8),(30,11),(40,15)]),
@@ -174,9 +189,9 @@ def build_model(price,vix,credit,us,asof):
       "erp":{"value":pct(erp_rank),"unit":"%分位","score":pct(scores["erp"]),"weight":30,
              "date":str(valuation_date.date()),"source":"已有标普500真实月度ERP十年分位"},
       "vix":{"value":pct(vix_value),"unit":"","score":pct(scores["vix"]),"weight":15,
-             "date":str(vdte.date()),"source":"Cboe官方历史VIX收盘价，故障回退FRED VIXCLS"},
+             "date":str(vdte.date()),"source":vix_source},
       "rsi":{"value":pct(rsi_value),"unit":"","score":pct(scores["rsi"]),"weight":15,
-             "date":str(pdte.date()),"source":"Yahoo ^GSPC指数日收盘价（故障回退FRED）· Wilder RSI(14)"},
+             "date":str(pdte.date()),"source":price_source+" · Wilder RSI(14)"},
       "breadth":{"value":None,"unit":"%","score":None,"weight":15,
              "date":None,"source":"S&P500成分股50日均线以上占比 · 历史接口待验证"},
       "credit":{"value":pct(oas) if credit_available else None,
@@ -185,7 +200,7 @@ def build_model(price,vix,credit,us,asof):
              "source":"FRED: BAMLH0A0HYM2 · ICE BofA；暂时无法访问则不计算",
              "change5":pct(oas5) if oas5 is not None else None,"change20":pct(oas20) if oas20 is not None else None},
       "trend":{"value":pct(close),"unit":"点","score":pct(scores["trend"]),"weight":10,
-             "date":str(pdte.date()),"source":"Yahoo ^GSPC日收盘价（故障回退FRED）· MA50/MA200","ma20":pct(ma20),
+             "date":str(pdte.date()),"source":price_source+" · MA50/MA200","ma20":pct(ma20),
              "ma50":pct(ma50),"ma200":pct(ma200)}
     }
     covered=sum(WEIGHTS[k] for k in scores)
@@ -212,6 +227,8 @@ def build_model(price,vix,credit,us,asof):
     out={
       "valid":True,"mode":"sp500-signals-v1","score":score,"coveredWeight":covered,
       "missingWeight":100-covered,"complete":covered==100,"asof":str(pdte.date()),
+      "riskDataIncomplete":not credit_available,
+      "missingIndicators":["breadth"]+(["credit"] if not credit_available else []),
       "action":action,"tone":tone,"confirmed":confirmation_count,
       "confirmations":confirmed,"riskVeto":bool(risk_flag),
       "indicators":indicators,"latestPrice":pct(close),
@@ -232,14 +249,15 @@ def main():
         price=fetch_price()
         vix=fetch_vix()
         try:
-            credit=fetch_fred("BAMLH0A0HYM2",40)
+            credit=fetch_fred("BAMLH0A0HYM2",220)
         except Exception as exc:
             print("HY OAS not reachable; keep credit weight missing and veto buy signals:",
                   str(exc)[:180],flush=True)
             credit=None
         result=build_model(price,vix,credit,us,now.date())
         target.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8")
-        status.update(success=True,date=result["asof"],coveredWeight=result["coveredWeight"])
+        status.update(success=True,date=result["asof"],coveredWeight=result["coveredWeight"],
+                      partial=result["coveredWeight"]<100,missingIndicators=result["missingIndicators"])
         print("US timing indicators verified",result["asof"],result["score"],
               "available weight",result["coveredWeight"],flush=True)
     except Exception as exc:

@@ -13,8 +13,7 @@ const doc={getElementById(id){return nodes[id]||(nodes[id]=node())}};
 const ctx={document:doc,window:{},console,Date};
 vm.runInNewContext(fs.readFileSync('us-signals.js','utf8'),ctx);
 assert.strictEqual(typeof ctx.window.renderUSSignals,'function');
-const file=JSON.parse(fs.readFileSync('data/us_signals.json','utf8'));
-ctx.window.renderUSSignals(file,{success:false});
+ctx.window.renderUSSignals({valid:false,reason:'指标不完整'},{success:false});
 assert.ok(nodes['signal-summary'].innerHTML.includes('指标'));
 assert.ok(nodes['signal-status'].textContent.includes('不显示模拟买卖点'));
 const dates=[];let start=Date.parse('2026-02-01T00:00:00Z');
@@ -29,14 +28,23 @@ const data={valid:true,mode:'sp500-signals-v1',asof:new Date().toISOString().sli
  action:'等待 / 持有观察',
  indicators:items,confirmations:[{name:'RSI回升',met:true},{name:'短线趋势确认',met:false},
  {name:'信用利差收窄',met:false}],priceHistory:dates};
-ctx.window.renderUSSignals(data,{success:true});
+ctx.window.renderUSSignals(data,{success:true,attemptAt:new Date().toISOString()});
 assert.ok(nodes['signal-summary'].innerHTML.includes('76'),'value from real payload');
 assert.ok(nodes['signal-summary'].innerHTML.includes('85'),'actual coverage');
-assert.ok(nodes['signal-items'].innerHTML.includes('待接入'),'no made-up breadth');
+assert.ok(nodes['signal-items'].innerHTML.includes('数据缺失'),'no made-up breadth');
 assert.ok(nodes['signal-chart'].innerHTML.includes('<svg'),'real close line');
 assert.ok(nodes['signal-confirm'].innerHTML.includes('RSI回升'));
-ctx.window.renderUSSignals(data,{success:false});
+data.indicators.credit.value=null;
+data.indicators.credit.score=null;
+data.riskDataIncomplete=true;
+ctx.window.renderUSSignals(data,{success:true,attemptAt:new Date().toISOString()});
+assert.ok(nodes['signal-summary'].innerHTML.includes('信用利差缺失'),
+  'No valid credit observation is not equivalent to credit-stress market data');
+ctx.window.renderUSSignals(data,{success:false,attemptAt:new Date().toISOString()});
 assert.ok(nodes['signal-summary'].innerHTML.includes('停止输出新买卖信号'));
+ctx.window.renderUSSignals(data,{success:true,attemptAt:'2025-01-01T08:00:00Z'});
+assert.ok(nodes['signal-summary'].innerHTML.includes('停止输出新买卖信号'),
+  'Stale automatic refresh cannot issue a new buy or trim signal');
 ctx.window.renderUSSignals(null,{success:false});
 assert.ok(!nodes['signal-chart'].innerHTML.includes('<svg'));
 console.log('PASS: new score directly before historical ERP; 85% coverage, no missing-data fabrication and safe stale state');

@@ -122,6 +122,27 @@ class IndustryValuationTests(unittest.TestCase):
         self.assertEqual(item["value"],1.80)
         self.assertEqual(set(item["periods"]),{"3","5","10"})
         self.assertEqual(item["points"][-1][1],1.80)
+        # Provider switched to a short recent-only API response; merge
+        # only overlapping same-source real PB observations.
+        import copy
+        tail=copy.deepcopy(payload)
+        tail["index"]["date"]="2026-11-05"
+        tail["index"]["pb"]=1.66
+        tail["series"]["pb"]=raw[-18:]+[{"d":"2026-11-05","v":1.66}]
+        restored=industry.parse_guchacha_pb(tail,"399975","2026-11-06",existing=item)
+        self.assertEqual(len(restored["points"]),len(item["points"])+1)
+        self.assertEqual(restored["date"],"2026-11-05")
+        self.assertEqual(restored["value"],1.66)
+        self.assertEqual(set(restored["periods"]),{"3","5","10"})
+        # Divergent provider history cannot be silently attached.
+        tampered=copy.deepcopy(tail)
+        tampered["series"]["pb"][4]["v"]+=1.0
+        with self.assertRaises(ValueError):
+            industry.parse_guchacha_pb(tampered,"399975","2026-11-06",existing=item)
+        foreign=copy.deepcopy(item)
+        foreign["source"]="unrelated index PB"
+        with self.assertRaises(ValueError):
+            industry.parse_guchacha_pb(tail,"399975","2026-11-06",existing=foreign)
         ranks=[item["periods"][str(n)]["percentile"] for n in (3,5,10)]
         self.assertNotEqual(len(set(ranks)),1,"selected PB ranks must change")
         for yrs in (3,5,10):

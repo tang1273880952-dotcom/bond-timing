@@ -14,6 +14,7 @@
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   })[c]);
   function failure(message){
+    root.dataset.tone='neutral';
     el('summary').innerHTML='<div class="signal-unavailable">'+safe(message)+'</div>';
     el('items').innerHTML=keys.map(k=>'<div class="signal-factor missing"><b>'+labels[k][0]+
       '</b><span>数据待核验</span></div>').join('');
@@ -23,7 +24,11 @@
   }
   function render(data,status){
     const parsed=Date.parse(String(data?.asof||'')+'T00:00:00Z');
-    const stale=Number.isFinite(parsed) ? Date.now()-parsed>9*86400000 : true;
+    const now=Date.now();
+    const stale=Number.isFinite(parsed)?now-parsed>6*86400000||parsed>now+86400000:true;
+    const lastAttempt=Date.parse(status?.attemptAt||'');
+    const refreshStale=!Number.isFinite(lastAttempt)||lastAttempt>now+86400000||
+      now-lastAttempt>4*86400000;
     const recentOk=data?.valid===true&&data?.mode==='sp500-signals-v1'&&
       typeof data.score==='number'&&data.score>=0&&data.score<=100&&
       data.coveredWeight>=70&&Array.isArray(data.priceHistory)&&data.priceHistory.length>40;
@@ -31,8 +36,8 @@
       failure(data?.reason||'尚未取得足够的标普500免费市场指标数据');
       return;
     }
-    const statusFail=status?.success===false;
-    const usable=!stale&&!statusFail;
+    const statusFail=status?.success!==true;
+    const usable=!stale&&!statusFail&&!refreshStale;
     const tone=usable?(['cheap','watch','neutral','caution','rich'].includes(data.tone)?data.tone:'neutral'):'neutral';
     const action=usable?data.action:'仅供历史参考，停止输出新买卖信号';
     root.dataset.tone=tone;
@@ -41,7 +46,9 @@
       '<span class="signal-state">'+safe(action)+'</span></div>'+
       '<div class="signal-stat"><span>止跌确认</span><strong>'+Number(data.confirmed||0)+
       '<small>/3</small></strong><span class="signal-state">'+
-      (data.riskVeto?'信用或恐慌风险过滤已触发':'未触发重大风险过滤')+
+      (data.riskDataIncomplete||data.indicators?.credit?.value==null?
+        '信用利差缺失，买入风险尚未核验':
+        data.riskVeto?'信用或恐慌风险过滤已触发':'未触发重大风险过滤')+
       '</span></div>'+
       '<div class="signal-stat"><span>有效数据覆盖</span><strong>'+Number(data.coveredWeight)+
       '<small>/100分权重</small></strong><span class="signal-state">未验证指标不计分</span></div>';
@@ -50,7 +57,7 @@
       const d=indicators[k],title=labels[k][0],total=Number(d?.weight||0);
       if(d?.value===null||!d||d.score===null){
         return '<div class="signal-factor missing"><div class="signal-factor-top"><b>'+title+
-          '</b><span>待接入</span></div><span class="signal-value">—</span>'+
+          '</b><span>数据缺失</span></div><span class="signal-value">—</span>'+
           '<div class="signal-track"></div><small>'+safe(d?.source||'真实数据未验证')+'</small></div>';
       }
       const ratio=Math.min(100,Math.max(0,Number(d.score)/Math.max(1,total)*100));
@@ -65,8 +72,13 @@
       '<span class="signal-gate '+(item.met?'met':'')+'">'+(item.met?'● ':'○ ')+
       safe(item.name)+'</span>').join('');
     el('status').textContent='截至 '+safe(data.asof)+
-      ' · ERP估值是月度数据，其余是日度收盘 · 评分阈值未回测 · '+
-      (statusFail?'最近一次数据刷新失败，显示旧记录':stale?'行情已过期': '仅供观察，不是交易指令');
+      ' · 有效覆盖 '+Number(data.coveredWeight)+'/100 权重，缺失项不计分 · ERP月度，其余日度 · '+
+      (data.riskDataIncomplete||data.indicators?.credit?.value==null?
+        '信用利差未核验，不发出买入信号 · ':'')+
+      '评分阈值未经回测 · '+
+      (statusFail?'更新状态缺失或失败，仅供历史参考':
+        refreshStale?'自动更新时间较旧，仅供历史参考':
+        stale?'行情已过期，仅供历史参考':'仅供研究，并非交易指令');
     const points=data.priceHistory.map(v=>({date:String(v[0]),value:Number(v[1])}))
       .filter(v=>Number.isFinite(v.value)&&v.value>0);
     if(points.length<40){el('chart').innerHTML='';return;}
