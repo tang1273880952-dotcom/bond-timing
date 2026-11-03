@@ -82,7 +82,7 @@
     <div id="signal-chart" class="signal-chart"></div>
     <p id="signal-status" class="signal-foot">评分是研究性观察，不代表交易建议。</p>
     <details class="chart-help"><summary>指标来源与评分规则</summary>
-      <p class="chart-help-text">初始权重：ERP 30、VIX 15、RSI 15、市场宽度 15、HY OAS 15、MA50/MA200 10。市场宽度缺少经核验的免费接口时标示缺失，按剩余85分权重折算为百分评分，显示实际覆盖率。高分须结合RSI反转、短线价格趋势和利差收窄等企稳确认；信用风险急升时禁止触发买入观察信号。RSI使用标普500日度收盘价按Wilder(14)计算；ERP是月度数据，其余为日度数据。阈值尚未严格历史回测，不能代表买卖胜率或未来收益。</p>
+      <p class="chart-help-text">初始权重：ERP 30、VIX 15、RSI 15、市场宽度 15、HY OAS 15、MA50/MA200 10。市场宽度缺少经核验的免费接口时标示缺失；信用利差若不可用也显示缺失并停用买入信号。按可用来源权重（85或70）折算百分评分，单独显示实际覆盖率。高分须结合RSI反转、短线价格趋势和利差收窄等企稳确认；信用风险急升时禁止触发买入观察信号。RSI使用标普500日度收盘价按Wilder(14)计算；ERP是月度数据，其余为日度数据。阈值尚未严格历史回测，不能代表买卖胜率或未来收益。</p>
       <p class="chart-help-text">来源：FRED SP500、VIXCLS（Cboe）、BAMLH0A0HYM2（ICE BofA）和本站已核验的月度标普500 ERP。指数价格曲线不展示未经时点回测的历史买卖标记；最新MA50/MA200只作为水平参考，不等于历史均线轨迹。</p>
     </details>
   </section>
@@ -310,7 +310,7 @@
 <script src="star100.js?v=20261029-star1"></script>
 <script src="industry.js?v=20261031-pbwindows2"></script>
 <script src="sp500.js?v=20261030-sp5001"></script>
-<script src="us-signals.js?v=20261103-sig1"></script>
+<script src="us-signals.js?v=20261103-sig2"></script>
 <script src="gold.js?v=20261030-gold1"></script>
 <script src="valuation-nav.js?v=20261031-pbwindows1"></script>
 <script src="app.js?v=20261103-sig1"></script>

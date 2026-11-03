@@ -42,6 +42,16 @@ class USSignalsTest(unittest.TestCase):
         self.assertLessEqual(abs(d["score"]-round(weighted/85*100)),1)
         self.assertEqual(d["indicators"]["erp"]["date"],"2026-10-30")
         self.assertTrue(all("met" in x for x in d["confirmations"]))
+    def test_missing_credit_is_not_fabricated_or_treated_as_buy_confirmation(self):
+        price,vix,credit,us=self.setup_data()
+        d=m.build_model(price,vix,None,us,asof="2026-11-03")
+        self.assertEqual(d["coveredWeight"],70)
+        self.assertEqual(d["missingWeight"],30)
+        self.assertIsNone(d["indicators"]["credit"]["score"])
+        self.assertIsNone(d["indicators"]["credit"]["value"])
+        self.assertTrue(d["riskVeto"])
+        self.assertNotIn(d["action"],["试探性观察买入","关注分批买入"])
+
     def test_future_or_stale_sources_are_refused(self):
         a=list(self.setup_data())
         with self.assertRaises(ValueError):

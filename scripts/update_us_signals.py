@@ -9,9 +9,9 @@ import json
 import math
 import traceback
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from io import StringIO
 from pathlib import Path
-from zoneinfo import ZoneInfo
 import requests
 import pandas as pd
 
@@ -22,7 +22,7 @@ HEADERS={"User-Agent":"Mozilla/5.0 (compatible; BondTimingResearch/1.0; public e
 WEIGHTS={"erp":30,"vix":15,"rsi":15,"breadth":15,"credit":15,"trend":10}
 
 def fetch_fred(series,min_rows=40):
-    response=requests.get(FRED.format(series),timeout=35,headers=HEADERS)
+    response=requests.get(FRED.format(series),timeout=9,headers=HEADERS)
     response.raise_for_status()
     if len(response.content)<300:raise ValueError(series+": unexpectedly short CSV")
     table=pd.read_csv(StringIO(response.text))
@@ -36,6 +36,61 @@ def fetch_fred(series,min_rows=40):
     if len(f)<min_rows or not f.date.is_monotonic_increasing:
         raise ValueError(series+": inadequate real EOD history")
     return f
+
+
+def fetch_price_yahoo():
+    """Yahoo public v8 chart for the ACTUAL S&P 500 index, never SPY."""
+    response=requests.get(
+        "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC",
+        params={"range":"2y","interval":"1d"},
+        headers={"User-Agent":"Mozilla/5.0 (compatible; BondTimingResearch/1.0)"},
+        timeout=18)
+    response.raise_for_status()
+    result=response.json()["chart"]["result"][0]
+    timestamps=result["timestamp"]
+    closes=result["indicators"]["quote"][0]["close"]
+    if len(timestamps)!=len(closes):
+        raise ValueError("Yahoo S&P500 daily chart length mismatch")
+    rows=[]
+    ny=ZoneInfo("America/New_York")
+    for timestamp,close in zip(timestamps,closes):
+        if close is None:continue
+        day=datetime.fromtimestamp(int(timestamp),tz=ny).date()
+        value=float(close)
+        if not (100<value<100000):raise ValueError("Yahoo S&P500 close outside range")
+        rows.append((pd.Timestamp(day),value))
+    frame=pd.DataFrame(rows,columns=["date","value"]).sort_values("date")
+    frame=frame.drop_duplicates("date",keep="last").reset_index(drop=True)
+    if len(frame)<230:raise ValueError("Yahoo S&P500 daily history incomplete")
+    return frame
+
+def fetch_vix_cboe():
+    """Cboe's official, freely published historical VIX closes."""
+    url="https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
+    response=requests.get(url,headers={"User-Agent":"Mozilla/5.0"},timeout=20)
+    response.raise_for_status()
+    f=pd.read_csv(StringIO(response.text))
+    if not {"DATE","CLOSE"}.issubset(f.columns):
+        raise ValueError("Cboe VIX CSV changed field names")
+    f=f[["DATE","CLOSE"]].rename(columns={"DATE":"date","CLOSE":"value"})
+    f["date"]=pd.to_datetime(f.date,errors="coerce").dt.normalize()
+    f["value"]=pd.to_numeric(f.value,errors="coerce")
+    f=f.dropna().sort_values("date").drop_duplicates("date",keep="last")
+    f=f.reset_index(drop=True)
+    if len(f)<40:raise ValueError("Cboe VIX historical close missing")
+    return f
+
+def fetch_price():
+    try:return fetch_price_yahoo()
+    except Exception as exc:
+        print("Yahoo index close unavailable, checking FRED SP500:",str(exc)[:120],flush=True)
+        return fetch_fred("SP500",230)
+
+def fetch_vix():
+    try:return fetch_vix_cboe()
+    except Exception as exc:
+        print("Cboe direct historical VIX unavailable, checking FRED:",str(exc)[:120],flush=True)
+        return fetch_fred("VIXCLS",40)
 
 def rsi14(closes):
     """Wilder 14-period RSI computed from index *daily closing prices*."""
@@ -68,17 +123,21 @@ def pct(x):return round(float(x),2)
 
 def build_model(price,vix,credit,us,asof):
     today=pd.Timestamp(asof).normalize()
-    if len(price)<230 or len(vix)<40 or len(credit)<40:
-        raise ValueError("Daily source history insufficient")
+    credit_available=credit is not None and len(credit)>=40
+    if len(price)<230 or len(vix)<40:
+        raise ValueError("Daily S&P500 price or VIX history insufficient")
     pdte,close=row(price)
     vdte,vix_value=row(vix)
-    cdte,oas=row(credit)
-    for name,dt in (("S&P500",pdte),("VIX",vdte),("HY OAS",cdte)):
+    cdte,oas=row(credit) if credit_available else (None,None)
+    providers=[("S&P500",pdte),("VIX",vdte)]
+    if credit_available:providers.append(("HY OAS",cdte))
+    for name,dt in providers:
         age=(today-dt).days
         if age<0 or age>8:raise ValueError(f"{name}: stale or future close ({dt.date()})")
-    if abs((pdte-vdte).days)>6 or abs((pdte-cdte).days)>7:
+    if abs((pdte-vdte).days)>6 or (credit_available and abs((pdte-cdte).days)>7):
         raise ValueError("Daily signals are not from comparable trading dates")
-    if not (100<close<100000 and 5<vix_value<120 and .25<oas<30):
+    if not (100<close<100000 and 5<vix_value<120) or
+            (credit_available and not (.25<oas<30))):
         raise ValueError("Unreasonable raw SP500, VIX or HY OAS values")
     if us.get("mode")!="live" or us.get("id")!="sp500":
         raise ValueError("Existing monthly ERP valuation unavailable")
@@ -94,35 +153,39 @@ def build_model(price,vix,credit,us,asof):
     ma20=float(pd.Series(last[-20:]).mean())
     ma50=float(pd.Series(last[-50:]).mean())
     ma200=float(pd.Series(last[-200:]).mean())
-    prior20=float(credit.value.iloc[-21]) if len(credit)>=21 else None
-    prior5=float(credit.value.iloc[-6]) if len(credit)>=6 else None
+    prior20=float(credit.value.iloc[-21]) if credit_available and len(credit)>=21 else None
+    prior5=float(credit.value.iloc[-6]) if credit_available and len(credit)>=6 else None
     oas5=oas-prior5 if prior5 is not None else None
     oas20=oas-prior20 if prior20 is not None else None
-    percentile1y=round(100*float((credit.value.iloc[-253:]<=oas).mean()),2)
+    percentile1y=round(100*float((credit.value.iloc[-253:]<=oas).mean()),2) if credit_available else None
 
     scores={
       "erp":30*erp_rank/100,
       "vix":interpolate(vix_value,[(12,0),(16,2),(20,5),(25,8),(30,11),(40,15)]),
       "rsi":interpolate(rsi_value,[(20,15),(30,13),(40,10),(50,6),(60,3),(70,0)]),
-      "credit":min(15,max(0,.10*percentile1y+(4 if oas5 is not None and oas5<=-.10 else 0))),
       "trend":(5 if close>=ma50 else 0)+(5 if close>=ma200 else 0)
     }
+    if credit_available:
+        scores["credit"]=min(15,max(0,.10*percentile1y+
+            (4 if oas5 is not None and oas5<=-.10 else 0)))
     # A source of verifiable daily SP500 constituents breadth has not been connected.
     # Never manufacture its 15 points or attribute a 100-point total to six signals.
     indicators={
       "erp":{"value":pct(erp_rank),"unit":"%分位","score":pct(scores["erp"]),"weight":30,
              "date":str(valuation_date.date()),"source":"已有标普500真实月度ERP十年分位"},
       "vix":{"value":pct(vix_value),"unit":"","score":pct(scores["vix"]),"weight":15,
-             "date":str(vdte.date()),"source":"FRED: VIXCLS（Cboe）"},
+             "date":str(vdte.date()),"source":"Cboe官方历史VIX收盘价，故障回退FRED VIXCLS"},
       "rsi":{"value":pct(rsi_value),"unit":"","score":pct(scores["rsi"]),"weight":15,
-             "date":str(pdte.date()),"source":"FRED: SP500 收盘价 · Wilder RSI(14)"},
+             "date":str(pdte.date()),"source":"Yahoo ^GSPC指数日收盘价（故障回退FRED）· Wilder RSI(14)"},
       "breadth":{"value":None,"unit":"%","score":None,"weight":15,
              "date":None,"source":"S&P500成分股50日均线以上占比 · 历史接口待验证"},
-      "credit":{"value":pct(oas),"unit":"%","score":pct(scores["credit"]),"weight":15,
-             "date":str(cdte.date()),"source":"FRED: BAMLH0A0HYM2 · ICE BofA",
+      "credit":{"value":pct(oas) if credit_available else None,
+             "unit":"%","score":pct(scores["credit"]) if credit_available else None,"weight":15,
+             "date":str(cdte.date()) if credit_available else None,
+             "source":"FRED: BAMLH0A0HYM2 · ICE BofA；暂时无法访问则不计算",
              "change5":pct(oas5) if oas5 is not None else None,"change20":pct(oas20) if oas20 is not None else None},
       "trend":{"value":pct(close),"unit":"点","score":pct(scores["trend"]),"weight":10,
-             "date":str(pdte.date()),"source":"FRED: SP500 · MA50/MA200","ma20":pct(ma20),
+             "date":str(pdte.date()),"source":"Yahoo ^GSPC日收盘价（故障回退FRED）· MA50/MA200","ma20":pct(ma20),
              "ma50":pct(ma50),"ma200":pct(ma200)}
     }
     covered=sum(WEIGHTS[k] for k in scores)
@@ -134,7 +197,8 @@ def build_model(price,vix,credit,us,asof):
                {"name":"价格站上MA20且近5日走强","met":bool(short_trend)},
                {"name":"信用利差5日收窄≥0.05百分点","met":bool(credit_improving)}]
     confirmation_count=sum(a["met"] for a in confirmed)
-    risk_flag=(oas20 is not None and oas20>=.75) or (vix_value>=40 and vix_value>float(vix.value.iloc[-6]))
+    risk_flag=(not credit_available) or (oas20 is not None and oas20>=.75) or (
+        vix_value>=40 and vix_value>float(vix.value.iloc[-6]))
     if score>=80 and confirmation_count>=2 and not risk_flag:
         action="关注分批买入";tone="cheap"
     elif score>=70 and confirmation_count>=1 and not risk_flag:
@@ -152,8 +216,8 @@ def build_model(price,vix,credit,us,asof):
       "confirmations":confirmed,"riskVeto":bool(risk_flag),
       "indicators":indicators,"latestPrice":pct(close),
       "priceHistory":[[str(r.date.date()),pct(r.value)] for r in recent.itertuples(index=False)],
-      "method":"六因子预设权重30/15/15/15/15/10，其中宽度数据不可用时只按已核验的85分权重折算100，明确显示覆盖85%；非回测交易建议。ERP使用月度估值，与日度信号日期不同。买入需止跌确认和信用风险过滤，卖出不靠单一高估指标。",
-      "sources":["https://fred.stlouisfed.org/series/SP500","https://fred.stlouisfed.org/series/VIXCLS",
+      "method":"六因子预设权重30/15/15/15/15/10，未核验来源不计分，按已核验权重折算100并单独显示覆盖率；数据缺失或信用利差不可用不触发买入观察。规则未经历史回测，不代表交易建议。ERP是月度指标，其余为日度指标。",
+      "sources":["https://finance.yahoo.com/quote/%5EGSPC/","https://www.cboe.com/tradable_products/vix/vix_historical_data",
                  "https://fred.stlouisfed.org/series/BAMLH0A0HYM2"]
     }
     return out
@@ -165,8 +229,15 @@ def main():
     target=DATA/"us_signals.json"
     try:
         us=json.loads((DATA/"us_latest.json").read_text(encoding="utf-8"))
-        result=build_model(fetch_fred("SP500",230),fetch_fred("VIXCLS",40),
-                           fetch_fred("BAMLH0A0HYM2",40),us,now.date())
+        price=fetch_price()
+        vix=fetch_vix()
+        try:
+            credit=fetch_fred("BAMLH0A0HYM2",40)
+        except Exception as exc:
+            print("HY OAS not reachable; keep credit weight missing and veto buy signals:",
+                  str(exc)[:180],flush=True)
+            credit=None
+        result=build_model(price,vix,credit,us,now.date())
         target.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8")
         status.update(success=True,date=result["asof"],coveredWeight=result["coveredWeight"])
         print("US timing indicators verified",result["asof"],result["score"],
