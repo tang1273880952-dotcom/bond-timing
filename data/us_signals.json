@@ -6,6 +6,11 @@
   "missingWeight": 30,
   "complete": false,
   "asof": "2026-11-02",
+  "riskDataIncomplete": true,
+  "missingIndicators": [
+    "breadth",
+    "credit"
+  ],
   "action": "等待 / 持有观察",
   "tone": "neutral",
   "confirmed": 0,
@@ -39,7 +44,7 @@
       "score": 5.69,
       "weight": 15,
       "date": "2026-11-02",
-      "source": "Cboe官方历史VIX收盘价，故障回退FRED VIXCLS"
+      "source": "Cboe VIX daily close"
     },
     "rsi": {
       "value": 37.75,
@@ -47,7 +52,7 @@
       "score": 10.68,
       "weight": 15,
       "date": "2026-11-02",
-      "source": "Yahoo ^GSPC指数日收盘价（故障回退FRED）· Wilder RSI(14)"
+      "source": "Yahoo Finance ^GSPC · Wilder RSI(14)"
     },
     "breadth": {
       "value": null,
@@ -73,7 +78,7 @@
       "score": 5.0,
       "weight": 10,
       "date": "2026-11-02",
-      "source": "Yahoo ^GSPC日收盘价（故障回退FRED）· MA50/MA200",
+      "source": "Yahoo Finance ^GSPC · MA50/MA200",
       "ma20": 7718.28,
       "ma50": 7694.42,
       "ma200": 7312.74
