@@ -11,10 +11,11 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = (
     "index.html", "styles.css", "app.js",
-    "history.js", "bse50.js", "star100.js", "industry.js", "valuation-nav.js", "gold.js", "sp500.js",
+    "history.js", "bse50.js", "star100.js", "industry.js", "valuation-nav.js", "gold.js", "sp500.js", "us-signals.js",
     "data/industry_latest.json", "data/industry_status.json",
     "data/latest.json", "data/status.json",
     "data/us_latest.json", "data/us_status.json",
+    "data/us_signals.json", "data/us_signals_status.json",
     "data/gold_latest.json", "data/gold_status.json",
 )
 

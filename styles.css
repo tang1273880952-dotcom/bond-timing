@@ -316,3 +316,39 @@ html{scroll-behavior:smooth}
 /* Unsupported PB-year options are visible but distinctly unavailable. */
 .industry-toolbar .history-switch button:disabled{opacity:.33;cursor:not-allowed;filter:grayscale(1)}
 .industry-toolbar .history-switch button:disabled:hover{background:transparent;color:inherit}
+
+/* Daily US timing observation, inserted immediately before monthly ERP history. */
+.sp-signals-panel{scroll-margin-top:85px}
+.signal-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.signal-heading h3{margin:0 0 5px;font-size:19px}
+.signal-heading p,.signal-foot{font-size:12px;color:#8492a7;line-height:1.55;margin:3px 0 10px}
+.signal-disclaimer{font-size:11px;color:#9b697b;background:#fff1f2;border-radius:18px;padding:6px 9px;white-space:nowrap}
+.signal-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
+.signal-stat{display:flex;flex-direction:column;gap:5px;background:#f5f7fb;border:1px solid #e5ebf5;border-radius:12px;padding:13px}
+.signal-stat>span:first-child{color:#72849d;font-size:12px}
+.signal-stat strong{font-size:30px;line-height:1.1;color:#2d476f}
+.signal-stat strong small{font-size:12px;color:#8294a9}
+.signal-state{color:#657a95;font-size:12px;font-weight:700}
+.sp-signals-panel[data-tone=watch] .signal-stat:first-child strong,.sp-signals-panel[data-tone=cheap] .signal-stat:first-child strong{color:#198c61}
+.sp-signals-panel[data-tone=rich] .signal-stat:first-child strong{color:#c56647}
+.signal-items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.signal-factor{padding:12px;border:1px solid #e6edf5;border-radius:11px;display:flex;flex-direction:column;gap:6px}
+.signal-factor-top{display:flex;justify-content:space-between;align-items:center;gap:5px}
+.signal-factor-top b{font-size:13px;color:#314669}
+.signal-factor-top span{font-size:11px;color:#7183a0}
+.signal-value{font-size:20px;font-weight:800;color:#2a4669}
+.signal-factor small{font-size:10px;color:#8595a9}
+.signal-factor.missing{background:#f7f9fc}
+.signal-track{height:5px;background:#e7edf4;border-radius:9px;overflow:hidden}
+.signal-track>div{height:100%;background:#439cbe;border-radius:9px}
+.signal-details{border-top:1px solid #ecf0f7;margin-top:15px;padding-top:12px}
+.signal-details strong,.signal-price-head strong{font-size:13px;color:#344a6b}
+.signal-confirm{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}
+.signal-gate{border-radius:20px;padding:6px 10px;background:#f0f3f7;font-size:11px;color:#6a7c93}
+.signal-gate.met{background:#e6f5ec;color:#21895f}
+.signal-price-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}
+.signal-price-head span{font-size:11px;color:#8d9aab}
+.signal-chart svg{display:block;width:100%;height:auto;min-height:170px}
+.signal-unavailable{padding:16px;background:#f5f7fb;color:#8291a6;border-radius:10px;grid-column:1/-1}
+@media(max-width:700px){.signal-items{grid-template-columns:repeat(2,minmax(0,1fr))}.signal-summary{gap:7px}.signal-stat{padding:10px}.signal-stat strong{font-size:24px}}
+@media(max-width:470px){.signal-heading{flex-wrap:wrap}.signal-summary{grid-template-columns:1fr}.signal-disclaimer{white-space:normal}}

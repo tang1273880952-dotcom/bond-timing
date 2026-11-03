@@ -134,7 +134,8 @@ async function load() {
     fetch('data/us_latest.json?'+stamp),fetch('data/us_status.json?'+stamp),
     fetch('data/industry_latest.json?'+stamp),
     fetch('data/industry_status.json?'+stamp),
-    fetch('data/gold_latest.json?'+stamp),fetch('data/gold_status.json?'+stamp)
+    fetch('data/gold_latest.json?'+stamp),fetch('data/gold_status.json?'+stamp),
+    fetch('data/us_signals.json?'+stamp),fetch('data/us_signals_status.json?'+stamp)
   ]);
   async function get(i){
     if(attempts[i].status!=='fulfilled'||!attempts[i].value.ok)return null;
@@ -143,6 +144,7 @@ async function load() {
   latest=await get(0);syncStatus=await get(1);
   usLatest=await get(2);usStatus=await get(3);
   if(window.renderSP500)window.renderSP500(usLatest?.history,usStatus);
+  if(window.renderUSSignals)window.renderUSSignals(await get(8),await get(9));
   render();renderUS();if(window.renderHistory)window.renderHistory(latest&&latest.history);if(window.renderBSE50)window.renderBSE50(latest&&latest.bse50);if(window.renderSTAR100)window.renderSTAR100(latest&&latest.star100);
   const industryData=await get(4);
   const industryStatus=await get(5);

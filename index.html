@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f7fb">
   <meta name="description" content="中证500、国债ETF、标普500、黄金AISC成本参考及行业历史估值走势。">
   <title>股债估值观察</title>
-  <link rel="stylesheet" href="styles.css?v=20261031-pbwindows1">
+  <link rel="stylesheet" href="styles.css?v=20261103-sig1">
 </head>
 <body>
 <main class="dashboard" id="dashboard-top">
@@ -68,6 +68,24 @@
 <p class="bse-note" id="bse-note">蓝线是北证50股债风险溢价（左轴，%），淡紫线是北证50指数收盘点位（右轴，点）。水平分位线每月更新一次。</p>
 <details class="chart-help"><summary>数据说明</summary><p class="chart-help-text">北证50发布于2022年11月，历史不足5年。 ERP＝100÷滚动PE－中国10年国债收益率；分位线每月更新。指数点位不是ETF收益，估值分位不等于买卖信号。</p></details>
 </section>
+
+  <section class="panel sp-signals-panel" id="sp500-signals-panel" aria-labelledby="signal-heading">
+    <div class="signal-heading">
+      <div><h3 id="signal-heading">标普500 · 抄底与止盈观察</h3>
+      <p>ERP估值、VIX、RSI、市场宽度、信用利差、均线趋势</p></div>
+      <span class="signal-disclaimer">研究信号 · 尚未回测</span>
+    </div>
+    <div class="signal-summary" id="signal-summary"><div class="signal-unavailable">正在核对市场指标</div></div>
+    <div class="signal-items" id="signal-items"></div>
+    <div class="signal-details"><strong>止跌确认与风险过滤</strong><div class="signal-confirm" id="signal-confirm"></div></div>
+    <div class="signal-price-head"><strong>标普500最近约1年收盘走势</strong><span>蓝线：指数价格 · 虚线：当前MA50/MA200水平参考</span></div>
+    <div id="signal-chart" class="signal-chart"></div>
+    <p id="signal-status" class="signal-foot">评分是研究性观察，不代表交易建议。</p>
+    <details class="chart-help"><summary>指标来源与评分规则</summary>
+      <p class="chart-help-text">初始权重：ERP 30、VIX 15、RSI 15、市场宽度 15、HY OAS 15、MA50/MA200 10。市场宽度缺少经核验的免费接口时标示缺失，按剩余85分权重折算为百分评分，显示实际覆盖率。高分须结合RSI反转、短线价格趋势和利差收窄等企稳确认；信用风险急升时禁止触发买入观察信号。RSI使用标普500日度收盘价按Wilder(14)计算；ERP是月度数据，其余为日度数据。阈值尚未严格历史回测，不能代表买卖胜率或未来收益。</p>
+      <p class="chart-help-text">来源：FRED SP500、VIXCLS（Cboe）、BAMLH0A0HYM2（ICE BofA）和本站已核验的月度标普500 ERP。指数价格曲线不展示未经时点回测的历史买卖标记；最新MA50/MA200只作为水平参考，不等于历史均线轨迹。</p>
+    </details>
+  </section>
 
   <section class="panel history-panel" id="sp500-panel">
     <h3>标普500 <span class="chart-code">ERP · 股债比</span></h3>
@@ -292,7 +310,8 @@
 <script src="star100.js?v=20261029-star1"></script>
 <script src="industry.js?v=20261031-pbwindows2"></script>
 <script src="sp500.js?v=20261030-sp5001"></script>
+<script src="us-signals.js?v=20261103-sig1"></script>
 <script src="gold.js?v=20261030-gold1"></script>
 <script src="valuation-nav.js?v=20261031-pbwindows1"></script>
-<script src="app.js?v=20261030-sp5001"></script>
+<script src="app.js?v=20261103-sig1"></script>
 </body></html>
