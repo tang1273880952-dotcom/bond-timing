@@ -1,5 +1,6 @@
 {
-  "attemptAt": "2026-11-03T20:04:03.552366+08:00",
-  "success": false,
-  "error": "HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=35)"
+  "attemptAt": "2026-11-03T20:11:13.207711+08:00",
+  "success": true,
+  "date": "2026-11-02",
+  "coveredWeight": 70
 }
