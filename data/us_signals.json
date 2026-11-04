@@ -5,7 +5,7 @@
   "coveredWeight": 100,
   "missingWeight": 0,
   "complete": true,
-  "asof": "2026-11-02",
+  "asof": "2026-11-03",
   "riskDataIncomplete": false,
   "missingIndicators": [],
   "action": "等待 / 持有观察",
@@ -44,50 +44,46 @@
       "source": "Cboe VIX daily close"
     },
     "rsi": {
-      "value": 37.75,
+      "value": 40.43,
       "unit": "",
-      "score": 10.68,
+      "score": 9.83,
       "weight": 15,
-      "date": "2026-11-02",
+      "date": "2026-11-03",
       "source": "Yahoo Finance ^GSPC · Wilder RSI(14)"
     },
     "breadth": {
-      "value": 66.93,
+      "value": 64.54,
       "unit": "%",
-      "score": 1.92,
+      "score": 2.64,
       "weight": 15,
-      "date": "2026-11-02",
+      "date": "2026-11-03",
       "source": "DeanFinancials GitHub · S&P500当前成分股50日均线上方占比",
-      "change5": 6.49
+      "change5": 5.1
     },
     "credit": {
-      "value": 3.44,
+      "value": 3.43,
       "unit": "%",
-      "score": 9.96,
+      "score": 9.92,
       "weight": 15,
-      "date": "2026-10-30",
+      "date": "2026-11-02",
       "source": "FRED BAMLH0A0HYM2 · ICE BofA，经公开GitHub缓存",
-      "change5": 0.06,
-      "change20": 0.34
+      "change5": 0.13,
+      "change20": 0.31
     },
     "trend": {
-      "value": 7541.4,
+      "value": 7568.92,
       "unit": "点",
       "score": 5.0,
       "weight": 10,
-      "date": "2026-11-02",
+      "date": "2026-11-03",
       "source": "Yahoo Finance ^GSPC · MA50/MA200",
-      "ma20": 7718.28,
-      "ma50": 7694.42,
-      "ma200": 7312.74
+      "ma20": 7705.78,
+      "ma50": 7692.74,
+      "ma200": 7315.89
     }
   },
-  "latestPrice": 7541.4,
+  "latestPrice": 7568.92,
   "priceHistory": [
-    [
-      "2025-10-21",
-      6735.35
-    ],
     [
       "2025-10-22",
       6699.4
@@ -1123,6 +1119,10 @@
     [
       "2026-11-02",
       7541.4
+    ],
+    [
+      "2026-11-03",
+      7568.92
     ]
   ],
   "method": "六因子预设权重30/15/15/15/15/10；采用真实S&P500当前成分股的50日均线广度，历史有成分变动偏差，不用于严格回测；高收益债OAS为真实ICE BofA数据经FRED公开缓存。任何来源缺失不计分并标注覆盖率，信用利差缺失停用买入信号；买卖规则未经回测。ERP为月度，其他日度。",
