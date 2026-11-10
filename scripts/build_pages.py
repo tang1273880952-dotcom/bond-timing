@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = (
-    "index.html", "styles.css", "app.js",
+    "index.html", "liquidity.html", "styles.css", "app.js",
     "history.js", "bse50.js", "star100.js", "industry.js", "valuation-nav.js", "gold.js", "sp500.js", "us-signals.js",
     "data/industry_latest.json", "data/industry_status.json",
     "data/latest.json", "data/status.json",
@@ -38,7 +38,8 @@ def build(destination):
                 raise ValueError(f"Public JSON is invalid: {rel}") from exc
             if not isinstance(obj, dict):
                 raise ValueError(f"Public JSON must contain an object: {rel}")
-    for rel in PUBLIC:
+    optional = ("data/liquidity_latest.json",)
+    for rel in (*PUBLIC, *(x for x in optional if (ROOT / x).is_file())):
         target = out / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / rel, target)
