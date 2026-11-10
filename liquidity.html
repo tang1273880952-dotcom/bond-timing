@@ -104,7 +104,7 @@ function trend13(def){
 function grade(def,stat){
  const state=freshness(def,stat.last&&stat.last.date);
  if(state.stale||!stat.last)return {text:"暂不判断",color:"",reason:"观测日期已过期"};
- const val=stat.last.value,t=trend13(def);
+ const val=stat.last.value,t=(def.key==="HY_OAS"||def.key==="RESERVES"||def.key==="NET_LIQUIDITY_BN")?trend13(def):null;
  if(def.key==="FUNDING_SPREAD"){
   if(val>=0.25)return {text:"融资明显承压",color:"bad",reason:"SOFR较IORB高"+fmt(val)+"个百分点"};
   if(val>=0.10)return {text:"融资压力关注",color:"warn",reason:"绝对融资利差已升高"};
