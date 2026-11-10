@@ -20,6 +20,7 @@ OUT = ROOT / "data/liquidity_latest.json"
 MIRROR = "https://raw.githubusercontent.com/Vincizh/market-fragility-dashboard/main/data/fred-cache/{}.csv"
 CONVEX = "https://convextrade.com/api/public/data/{}?start=2015-01-01"
 CBOE = "https://cdn.cboe.com/api/global/us_indices/daily_prices/{}_History.csv"
+NYFED = "https://markets.newyorkfed.org/api/rates/secured/sofr/last/7.json"
 SERIES = {
     "SOFR": "SOFR", "IORB": "IORB", "HY_OAS": "BAMLH0A0HYM2",
     "RESERVES": "WRESBAL", "FED_ASSETS": "WALCL",
@@ -87,6 +88,25 @@ def parse_convex(raw):
         raise ValueError("unexpected Convex JSON")
     return [{"date": x.get("date"), "value": x.get("value")} for x in obj["data"]]
 
+def parse_nyfed(raw, name):
+    """Official NY Fed recent SOFR observations: exact effective dates, not display dates."""
+    if name not in ("SOFR", "SOFR99"):
+        raise ValueError("unsupported NY Fed series")
+    obj = json.loads(raw)
+    records = obj.get("refRates")
+    if not isinstance(records, list):
+        raise ValueError("NY Fed refRates not found")
+    field = "percentRate" if name == "SOFR" else "percentPercentile99"
+    out = []
+    for row in records:
+        if row.get("type") != "SOFR":
+            continue
+        if row.get("effectiveDate") and row.get(field) is not None:
+            out.append({"date": row["effectiveDate"], "value": row[field]})
+    if not out:
+        raise ValueError("NY Fed has no rate observations")
+    return out
+
 def validate(name, values):
     low, high = MINMAX[name]
     cleaned = {}
@@ -130,6 +150,16 @@ def fetch_one(name, code):
             failures.append(f"{label}: {str(exc)[:110]}")
     if selected is None:
         raise RuntimeError("; ".join(failures))
+    if name in ("SOFR", "SOFR99"):
+        try:
+            official = parse_nyfed(download(NYFED, timeout=10), name)
+            old_last = selected[-1]["date"]
+            merged = validate(name, selected + official)
+            if merged[-1]["date"] >= old_last:
+                selected = merged
+                source += " + NY Fed official recent SOFR (matched effective dates)"
+        except Exception as exc:
+            failures.append("NY Fed official recent data: " + str(exc)[:110])
     return selected, source, failures
 
 def combine(a, b):
