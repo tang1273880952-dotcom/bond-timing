@@ -1,16 +1,113 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>美元流动性监测</title><style>
-:root{font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif;color:#172b46;background:#f5f7fb}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1100px;margin:auto;padding:24px}a{color:#2864ad}header{display:flex;align-items:center;justify-content:space-between;gap:10px}h1{font-size:25px;margin:14px 0}h2{font-size:17px}.muted{color:#68788c;font-size:13px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:white;border:1px solid #e0e6ee;border-radius:14px;padding:18px;margin-bottom:14px}.num{font-size:25px;font-weight:700;margin:8px 0}.ok{color:#18866a}.warn{color:#ba7b15}.bad{color:#c3484a}button{background:white;border:1px solid #d7dfe9;border-radius:7px;padding:7px 12px;cursor:pointer}button[aria-pressed=true]{background:#2563a8;color:white}svg{width:100%;height:auto;display:block}.chart{overflow:hidden}svg text{font-size:11px;fill:#718096}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.status{padding:10px;border-radius:9px;background:#f3f6fa;font-size:13px}footer{font-size:12px;color:#64748b;margin:20px 0}@media(max-width:600px){.grid{grid-template-columns:1fr}.wrap{padding:12px}}</style></head><body><main class="wrap"><header><a href="./">← 返回估值仪表盘</a><button id="reload">刷新已发布数据</button></header><h1>美元流动性监测</h1><p class="muted">官方历史数据 · 数据所属日期与抓取时间分别显示 · 非实时交易信号</p><div id="health" class="status">正在读取数据…</div><section id="cards" class="grid" style="margin-top:16px"></section><section id="charts"></section><footer>资金利差=SOFR−IORB（百分点）；HY OAS为高收益债信用利差（%）；净流动性代理=美联储资产−TGA−隔夜逆回购，按周对齐，单位十亿美元。风险阈值仅为观察提示，非经回测的交易信号。来源：FRED、纽约联储数据在FRED的公开镜像。缺失数据不补造，旧值必须显示原始日期。</footer></main><script>
-const defs=[["FUNDING_SPREAD","融资压力 · SOFR−IORB","百分点",true],["HY_OAS","信用风险 · HY OAS","%",true],["RESERVES","银行准备金","百万美元",false],["NET_LIQUIDITY_BN","美元净流动性代理","十亿美元",false],["VIX","市场恐慌 · VIX","",true],["GVZ","黄金波动率 · GVZ","",true]];
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f4f7fb"><meta name="description" content="免费历史数据构建的美元融资、信用、准备金和黄金波动监测。">
+<title>美元流动性监测 · 股债估值观察</title>
+<style>
+:root{color-scheme:light;font:15px/1.55 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#182b45;background:#f4f7fb}
+*{box-sizing:border-box}body{margin:0}.page{max-width:1180px;margin:auto;padding:20px 16px 50px}a{color:#2e68ad;text-decoration:none}
+header,.heading,.charthead,.metrichead,.switches,.meta-line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+header{border-bottom:1px solid #e2e8f0;padding:5px 0 16px}.toplink{font-size:14px}
+button{font:inherit;cursor:pointer;border:1px solid #d9e1eb;background:white;border-radius:8px;padding:7px 12px;color:#344861}button:hover{border-color:#8fb7e3}button.active{background:#2e68ad;color:#fff;border-color:#2e68ad}
+h1{font-size:27px;letter-spacing:-.5px;margin:18px 0 2px}h2{font-size:18px;margin:0}h3{font-size:15px;margin:0}
+.sub,.muted,.helper{font-size:12px;color:#66778b}.sub{font-size:13px;margin:0 0 16px}
+.status{margin:14px 0 20px;padding:12px 15px;border:1px solid #dde7f2;background:#edf3fb;border-radius:12px;font-size:13px}
+.status strong{color:#294e7a}.status.warning{background:#fff7e8;border-color:#f4d9a9}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.metric,.panel{background:white;border:1px solid #e0e7f0;border-radius:14px;box-shadow:0 1px 2px rgba(26,54,93,.03)}
+.metric{padding:15px;min-height:145px}.metrichead{font-size:13px;color:#4d617b;font-weight:600;gap:4px}.number{font-weight:700;letter-spacing:-.3px;font-size:25px;margin:7px 0 4px;font-variant-numeric:tabular-nums}.smallunit{font-size:12px;font-weight:400;color:#66778b}
+.pill{font-size:11px;border-radius:100px;padding:2px 8px;background:#edf2f7;color:#556578;white-space:nowrap}
+.pill.bad{background:#fce7e7;color:#b43c3d}.pill.warn{background:#fff1d6;color:#96631c}.pill.good{background:#dff4ea;color:#18754e}
+.sectionlabel{margin:24px 0 12px;font-size:17px;font-weight:650}
+.panel{padding:17px 16px;margin:12px 0}.charthead{align-items:flex-start}.charttitle{font-size:16px;font-weight:650}
+.chartmeta{font-size:12px;color:#728198;margin:3px 0 8px}
+.switches{gap:5px}.switches button{font-size:12px;padding:4px 11px}
+.chartbox svg{display:block;width:100%;height:auto;min-height:140px}
+.chartbox svg text{fill:#7b8ba1;font-size:11px}
+.legend{margin:4px 0 0;font-size:11px;color:#6c7b91}
+.stat{font-size:12px;font-variant-numeric:tabular-nums;color:#536982}
+.charttip{padding-top:5px;min-height:23px;font-size:12px;color:#244b77}
+.note{font-size:12px;color:#61748b;line-height:1.7}
+.health-line{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.overall{margin:2px 0 14px;background:#fff;border:1px solid #e0e7f0;border-radius:12px;padding:13px 15px}
+footer{font-size:12px;color:#728198;line-height:1.7;margin-top:20px}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){h1{font-size:24px}.page{padding:12px 12px 40px}.metric{padding:12px}.number{font-size:21px}.panel{padding:13px 10px}.charthead{gap:6px}.charttitle{font-size:15px}.grid{gap:8px}.metrichead{font-size:12px}.status{font-size:12px}}
+</style></head><body>
+<main class="page">
+<header><a class="toplink" href="./">← 返回股债估值仪表盘</a><button id="refresh" type="button">刷新已发布数据</button></header>
+<h1>美元流动性监测</h1><p class="sub">融资压力 · 信用风险 · 银行资金 · 黄金恐慌</p>
+<div class="status" id="health" role="status">正在读取已发布数据…</div>
+<div class="overall" id="overall">等待历史样本</div>
+<section id="summary" class="grid" aria-label="四项核心指标"></section>
+<div class="heading" style="margin-top:23px"><h2>历史流动性指标</h2><div class="switches" id="range-buttons" aria-label="选择观察年限"></div></div>
+<p class="muted" style="margin:2px 0">蓝色为真实历史值，虚线为所选区间历史分位参考。分位极端并不等于金融危机。</p>
+<section id="charts" aria-label="历史走势"></section>
+<details class="panel"><summary>数据来源与计算口径</summary>
+<p class="note">SOFR－IORB及SOFR 99%－IORB均仅匹配相同的实际观测日期；两者单位为百分点。HY OAS单位为百分数。美联储总资产WALCL、TGA（WTREGEN）原始单位均为百万美元，隔夜逆回购RRPONTSYD单位为十亿美元；每周仅取同周的资产和TGA，并匹配日期不晚于当周且相差不超过7天的最近RRP。净流动性是简化代理量，不是资金供需的完整衡量。</p>
+<p class="note">数据来源包括 <a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener">FRED</a> 历史数据的<a href="https://github.com/Vincizh/market-fragility-dashboard" target="_blank" rel="noopener">公开GitHub镜像</a>、<a href="https://convextrade.com/open-data" target="_blank" rel="noopener">Convex公开接口</a>及<a href="https://www.cboe.com/" target="_blank" rel="noopener">Cboe</a>。美元广义指数DTWEXBGS不是DXY；尾部融资利差也不能替代MOVE债券波动率。</p>
+<p class="note">历史分位使用所选观察窗口内的样本计算，不是无未来函数的买卖回测模型。历史不足所选年限时不会补造。部分指标存在发布日期滞后，始终以图上的实际观测日期为准。</p>
+</details><footer>此页面仅供市场研究，不构成买卖建议。刷新按钮仅加载已发布数据，后台按北京时间每日08:00、20:00检查更新。</footer>
+</main>
+<script>
+"use strict";
+const DEF=[
+ {key:"FUNDING_SPREAD",title:"融资压力 · SOFR－IORB",unit:"百分点",danger:"high",freq:"daily"},
+ {key:"HY_OAS",title:"信用风险 · 高收益债OAS",unit:"%",danger:"high",freq:"daily"},
+ {key:"RESERVES",title:"美国银行准备金",unit:"万亿美元",danger:"low",freq:"weekly",scale:1000000},
+ {key:"NET_LIQUIDITY_BN",title:"美元净流动性代理",unit:"万亿美元",danger:"low",freq:"weekly",scale:1000},
+ {key:"VIX",title:"股票恐慌 · VIX",unit:"",danger:"high",freq:"daily"},
+ {key:"GVZ",title:"黄金波动率 · GVZ",unit:"",danger:"high",freq:"daily"},
+ {key:"DOLLAR_BROAD",title:"美元广义贸易加权指数",unit:"指数",danger:"none",freq:"weekly"},
+ {key:"TAIL_SPREAD",title:"尾部融资压力 · SOFR99－IORB",unit:"百分点",danger:"high",freq:"daily"}
+];
 let data=null,years=5;
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function pct(arr,v){if(arr.length<60)return null;return Math.round(100*arr.filter(x=>x.value<=v).length/arr.length)}
-function render(){
-const s=data.series||{},errors=data.errors||{};document.querySelector("#health").textContent="上次检查："+(data.checked_at||"未知")+"｜失败来源："+(Object.keys(errors).join("、")||"无")+"｜部分指标可能保留旧数据";
-document.querySelector("#cards").innerHTML=defs.slice(0,4).map(([k,n,u,high])=>{let a=s[k]||[],v=a.at(-1),p=v?pct(a.filter(x=>x.date>=String(+v.date.slice(0,4)-5)+v.date.slice(4)),v.value):null;return '<article class="card"><div>'+n+'</div><div class="num">'+(v?Number(v.value).toLocaleString("zh-CN",{maximumFractionDigits:2}):"暂无")+' <small>'+u+'</small></div><div class="muted">观测日：'+(v?.date||"无")+' · 历史分位：'+(p===null?"样本不足":p+"%")+'</div>'+(errors[k]||errors[k==="FUNDING_SPREAD"?"SOFR":k]?"<div class=warn>接口失败，可能为旧数据</div>":"")+'</article>'}).join("");
-document.querySelector("#charts").innerHTML=defs.map(([k,n,u])=>{const a=(s[k]||[]).filter(x=>x.date>=new Date(Date.now()-years*366*86400000).toISOString().slice(0,10));return '<section class="card"><div class="top"><h2>'+n+'</h2><div>'+[3,5,10].map(y=>'<button data-years="'+y+'" aria-pressed="'+(years===y)+'">'+y+'年</button>').join("")+'</div></div><div class="chart">'+chart(a,u)+'</div><div class="muted">最新有效观测：'+(a.at(-1)?.date||"暂无")+' · '+u+' · 不同指标频率不同</div></section>'}).join("");
-document.querySelectorAll("[data-years]").forEach(b=>b.onclick=()=>{years=+b.dataset.years;render()});
+const $=id=>document.getElementById(id);
+const safe=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=(x,p=2)=>Number(x).toLocaleString("zh-CN",{minimumFractionDigits:p,maximumFractionDigits:p});
+function obs(def){return (data.series && data.series[def.key] || []).filter(x=>x && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && Number.isFinite(x.value));}
+function view(def){const a=obs(def),last=a.at(-1);if(!last)return [];const start=new Date(last.date+"T00:00:00Z");start.setUTCFullYear(start.getUTCFullYear()-years);return a.filter(x=>x.date>=start.toISOString().slice(0,10));}
+function quantile(sorted,p){if(!sorted.length)return null;const t=(sorted.length-1)*p/100,k=Math.floor(t);return sorted[k]+(sorted[Math.ceil(t)]-sorted[k])*(t-k);}
+function stats(def){const a=view(def),last=a.at(-1);if(!last)return {a,p:null,last:null,q:[]};const vs=a.map(x=>x.value).sort((a,b)=>a-b);const p=vs.length<25?null:Math.round(100*vs.filter(x=>x<=last.value).length/vs.length);return {a,p,last,q:[0,10,20,50,80,90,100].map(x=>quantile(vs,x))};}
+function old(def,day){if(!day)return true;const age=(Date.now()-Date.parse(day+"T00:00:00Z"))/86400000;return age>(def.freq==="weekly"?12:5);}
+function risk(def,p,isOld){if(p===null||isOld||def.danger==="none")return ["无判断",""];const score=def.danger==="high"?p:100-p;if(score>=90)return ["历史极端","bad"];if(score>=80)return ["偏紧观察","warn"];return ["非极端","good"];}
+function value(def,v){if(v===undefined||v===null)return "—";return fmt(v/(def.scale||1));}
+function makeChart(def,s){
+ const a=s.a;
+ if(a.length<2)return '<p class="muted">尚无足够历史数据，不能绘制。</p>';
+ let lo=Math.min(...a.map(x=>x.value)),hi=Math.max(...a.map(x=>x.value));
+ const spread=(hi-lo)||1;lo-=spread*.12;hi+=spread*.12;
+ const x=i=>55+i*750/(a.length-1),y=v=>213-(v-lo)/(hi-lo)*174;
+ const points=a.map((z,i)=>x(i).toFixed(1)+","+y(z.value).toFixed(1)).join(" ");
+ const grid=[0,.25,.5,.75,1].map(f=>{const v=lo+(hi-lo)*f;return '<line x1="55" x2="805" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'" stroke="#e6ecf3"/><text x="4" y="'+(y(v)+4).toFixed(1)+'">'+safe(value(def,v))+'</text>';}).join("");
+ const pct=[0,10,20,50,80,90,100],colors={0:"#b4c2d2",10:"#6ab1a3",20:"#8bc7b7",50:"#a9a5bf",80:"#eab777",90:"#e19672",100:"#bdc7d5"};
+ const lines=s.q.map((v,i)=>'<line x1="55" x2="805" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'" stroke="'+colors[pct[i]]+'" stroke-width="1.1" stroke-dasharray="5,5" opacity=".7"/><text x="809" y="'+(y(v)+4).toFixed(1)+'">'+pct[i]+'%</text>').join("");
+ return '<div class="chartbox" data-chart="'+safe(def.key)+'"><svg viewBox="0 0 870 245" role="img" aria-label="'+safe(def.title)+'历史走势">'+grid+lines+'<polyline fill="none" stroke="#2875bc" stroke-width="2" stroke-linejoin="round" points="'+points+'"/><circle cx="'+x(a.length-1)+'" cy="'+y(a.at(-1).value)+'" r="3.6" fill="#2875bc"/><text x="55" y="237">'+safe(a[0].date)+'</text><text x="730" y="237">'+safe(a.at(-1).date)+'</text></svg><div class="charttip" aria-live="off">触摸或移动到曲线上查看历史观测</div></div>';
 }
-function chart(a,unit){if(a.length<2)return '<p class="muted">有效历史数据不足</p>';let v=a.map(x=>x.value),lo=Math.min(...v),hi=Math.max(...v),pad=(hi-lo)*.12||1;lo-=pad;hi+=pad;let pts=a.map((x,i)=>(48+i*840/(a.length-1)).toFixed(1)+","+(215-(x.value-lo)/(hi-lo)*185).toFixed(1)).join(" ");let ticks=[0,.25,.5,.75,1].map(t=>'<line x1="48" x2="888" y1="'+(215-t*185)+'" y2="'+(215-t*185)+'" stroke="#e7ecf2"/><text x="4" y="'+(219-t*185)+'">'+(lo+(hi-lo)*t).toFixed(1)+'</text>').join("");return '<svg viewBox="0 0 900 250" role="img" aria-label="历史数据折线图">'+ticks+'<polyline fill="none" stroke="#2873b9" stroke-width="2" points="'+pts+'"/><text x="48" y="240">'+a[0].date+'</text><text x="780" y="240">'+a.at(-1).date+'</text></svg>'}
-async function load(){try{let r=await fetch("data/liquidity_latest.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);data=await r.json();render()}catch(e){document.querySelector("#health").textContent="暂未发布流动性数据："+e.message}}
-document.querySelector("#reload").onclick=load;load();
+function render(){
+ if(!data)return;
+ const checked=data.checked_at?new Date(data.checked_at).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}):"未知";
+ const failures=Object.keys(data.errors||{});
+ $("health").className="status"+(failures.length?" warning":"");
+ $("health").innerHTML='<div class="health-line"><strong>上次抓取：'+safe(checked)+'（北京时间）</strong><span>可用指标：'+Object.keys(data.series||{}).filter(k=>(data.series[k]||[]).length).length+' 项</span>'+(failures.length?'<span class="pill warn">部分数据源失败</span>':'<span class="pill good">数据抓取已执行</span>')+'</div><div class="helper">各指标以实际观测日期为准；数据较旧会标注，不代表今日行情。</div>';
+ let core=DEF.slice(0,4).map(d=>({d,s:stats(d)})),flagged=core.filter(z=>risk(z.d,z.s.p,old(z.d,z.s.last&&z.s.last.date))[1]==="bad").length,coverage=core.filter(z=>z.s.p!==null&&!old(z.d,z.s.last&&z.s.last.date)).length;
+ $("overall").innerHTML='<strong>核心资金压力观察：</strong>'+(coverage<3?'有效指标不足，暂不判断综合状态。':flagged>=2?'多项指标位于历史紧张端，值得警惕。':flagged===1?'一项核心指标进入历史极端区间。':'未出现两项以上核心指标同时处于历史极端区间。')+'<div class="helper">这是历史分位启发式观察（'+coverage+'/4项有效），不是经回测的危机预测或抄底信号。</div>';
+ $("summary").innerHTML=core.map(z=>{const d=z.d,s=z.s,stale=old(d,s.last&&s.last.date),label=risk(d,s.p,stale);return '<article class="metric"><div class="metrichead"><span>'+safe(d.title)+'</span><span class="pill '+(stale?'warn':label[1])+'">'+(stale?'数据滞后':label[0])+'</span></div><div class="number">'+(s.last?value(d,s.last.value):"—")+' <span class="smallunit">'+safe(d.unit)+'</span></div><div class="helper">观测：'+safe(s.last?s.last.date:"暂无")+' · '+(s.p===null?'分位样本不足':'历史分位 '+s.p+'%')+'</div></article>';}).join("");
+ $("range-buttons").innerHTML=[3,5,10].map(y=>'<button class="'+(years===y?'active':'')+'" type="button" data-years="'+y+'" aria-pressed="'+(years===y)+'">'+y+'年</button>').join("");
+ $("charts").innerHTML=DEF.map(d=>{const s=stats(d),last=s.last,stale=old(d,last&&last.date),level=risk(d,s.p,stale),src=(data.source_by_series||{})[d.key]||"尚无来源";
+ return '<section class="panel"><div class="charthead"><div><div class="charttitle">'+safe(d.title)+' '+(stale?'<span class="pill warn">数据滞后</span>':'')+'</div><div class="chartmeta">最新观测：'+safe(last?last.date:"暂无")+'　历史样本：'+s.a.length+' 条</div></div><div class="stat">'+(last?value(d,last.value)+" "+safe(d.unit):"暂无")+(s.p!==null?" · "+s.p+"%分位":"")+'</div></div>'+makeChart(d,s)+'<div class="legend">来源：'+safe(src)+'</div></section>';}).join("");
+ $("range-buttons").querySelectorAll("button").forEach(b=>b.onclick=()=>{years=Number(b.dataset.years);render();});
+ $("charts").querySelectorAll(".chartbox").forEach(box=>{
+   const def=DEF.find(d=>d.key===box.dataset.chart),a=stats(def).a,svg=box.querySelector("svg"),tip=box.querySelector(".charttip");
+   if(!a.length)return;
+   const show=event=>{const rect=svg.getBoundingClientRect();let fraction=(event.clientX-rect.left)/rect.width;let i=Math.max(0,Math.min(a.length-1,Math.round((fraction*870-55)/750*(a.length-1))));tip.textContent=a[i].date+"： "+value(def,a[i].value)+" "+def.unit;};
+   svg.addEventListener("pointermove",show);svg.addEventListener("pointerdown",show);
+ });
+}
+async function load(){
+ $("refresh").disabled=true;
+ try{const response=await fetch("./data/liquidity_latest.json?ts="+Date.now(),{cache:"no-store"});if(!response.ok)throw new Error("HTTP "+response.status);const obj=await response.json();if(!obj.series||!obj.checked_at)throw new Error("数据格式异常");data=obj;render();}
+ catch(e){$("health").className="status warning";$("health").textContent="美元流动性数据尚未正常发布："+e.message;$("overall").textContent="暂时无法判断风险，避免使用过期或虚构数据。";}
+ finally{$("refresh").disabled=false}
+}
+$("refresh").onclick=load;load();
 </script></body></html>

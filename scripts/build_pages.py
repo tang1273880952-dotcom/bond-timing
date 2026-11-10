@@ -39,6 +39,14 @@ def build(destination):
             if not isinstance(obj, dict):
                 raise ValueError(f"Public JSON must contain an object: {rel}")
     optional = ("data/liquidity_latest.json",)
+    for rel in optional:
+        if (ROOT / rel).is_file():
+            try:
+                obj = json.loads((ROOT / rel).read_text(encoding="utf-8"))
+                if not isinstance(obj, dict) or not isinstance(obj.get("series"), dict):
+                    raise ValueError("missing liquidity series object")
+            except (UnicodeError, ValueError, OSError) as exc:
+                raise ValueError(f"Invalid optional snapshot: {rel}") from exc
     for rel in (*PUBLIC, *(x for x in optional if (ROOT / x).is_file())):
         target = out / rel
         target.parent.mkdir(parents=True, exist_ok=True)
