@@ -40,12 +40,12 @@ footer{font-size:12px;color:#728198;line-height:1.7;margin-top:20px}
 <div class="overall" id="overall">等待历史样本</div>
 <section id="summary" class="grid" aria-label="四项核心指标"></section>
 <div class="heading" style="margin-top:23px"><h2>历史流动性指标</h2><div class="switches" id="range-buttons" aria-label="选择观察年限"></div></div>
-<p class="muted" style="margin:2px 0">蓝色为真实历史值，虚线为所选区间历史分位参考。分位极端并不等于金融危机。</p>
+<p class="muted" style="margin:2px 0">蓝色为真实历史值，虚线为所选区间历史分位参考。分位线仅反映历史位置；风险评级结合绝对利差和13周变化，不把分位高低直接等同金融危机。</p>
 <section id="charts" aria-label="历史走势"></section>
 <details class="panel"><summary>数据来源与计算口径</summary>
 <p class="note">SOFR－IORB及SOFR 99%－IORB均仅匹配相同的实际观测日期；两者单位为百分点。HY OAS单位为百分数。美联储总资产WALCL、TGA（WTREGEN）原始单位均为百万美元，隔夜逆回购RRPONTSYD单位为十亿美元；每周仅取同周的资产和TGA，并匹配日期不晚于当周且相差不超过7天的最近RRP。净流动性是简化代理量，不是资金供需的完整衡量。</p>
 <p class="note">数据来源包括 <a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener">FRED</a> 历史数据的<a href="https://github.com/Vincizh/market-fragility-dashboard" target="_blank" rel="noopener">公开GitHub镜像</a>、<a href="https://convextrade.com/open-data" target="_blank" rel="noopener">Convex公开接口</a>及<a href="https://www.cboe.com/" target="_blank" rel="noopener">Cboe</a>。美元广义指数DTWEXBGS不是DXY；尾部融资利差也不能替代MOVE债券波动率。</p>
-<p class="note">历史分位使用所选观察窗口内的样本计算，不是无未来函数的买卖回测模型。历史不足所选年限时不会补造。部分指标存在发布日期滞后，始终以图上的实际观测日期为准。</p>
+<p class="note">历史分位使用所选观察窗口内的样本计算，不是无未来函数的买卖回测模型。历史不足所选年限时不会补造。部分指标存在发布日期滞后，日频数据按美国工作日、周频数据按自然日评估新鲜度。红黄绿提示是研究性观察，不能简单用历史百分位推断融资危机。</p>
 </details><footer>此页面仅供市场研究，不构成买卖建议。刷新按钮仅加载已发布数据，后台按北京时间每日08:00、20:00检查更新。</footer>
 </main>
 <script>
@@ -68,8 +68,62 @@ function obs(def){return (data.series && data.series[def.key] || []).filter(x=>x
 function view(def){const a=obs(def),last=a.at(-1);if(!last)return [];const start=new Date(last.date+"T00:00:00Z");start.setUTCFullYear(start.getUTCFullYear()-years);return a.filter(x=>x.date>=start.toISOString().slice(0,10));}
 function quantile(sorted,p){if(!sorted.length)return null;const t=(sorted.length-1)*p/100,k=Math.floor(t);return sorted[k]+(sorted[Math.ceil(t)]-sorted[k])*(t-k);}
 function stats(def){const a=view(def),last=a.at(-1);if(!last)return {a,p:null,last:null,q:[]};const vs=a.map(x=>x.value).sort((a,b)=>a-b);const p=vs.length<25?null:Math.round(100*vs.filter(x=>x<=last.value).length/vs.length);return {a,p,last,q:[0,10,20,50,80,90,100].map(x=>quantile(vs,x))};}
-function old(def,day){if(!day)return true;const age=(Date.now()-Date.parse(day+"T00:00:00Z"))/86400000;return age>(def.freq==="weekly"?12:5);}
-function risk(def,p,isOld){if(p===null||isOld||def.danger==="none")return ["无判断",""];const score=def.danger==="high"?p:100-p;if(score>=90)return ["历史极端","bad"];if(score>=80)return ["偏紧观察","warn"];return ["非极端","good"];}
+function usToday(){
+ const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+ const value=k=>parts.find(x=>x.type===k).value;
+ return value("year")+"-"+value("month")+"-"+value("day");
+}
+function businessDaysSince(day){
+ if(!day)return Infinity;
+ const last=Date.parse(day+"T12:00:00Z"),today=Date.parse(usToday()+"T12:00:00Z");
+ if(!Number.isFinite(last)||last>today)return Infinity;
+ let count=0;
+ for(let t=last+86400000;t<=today;t+=86400000){
+   const w=new Date(t).getUTCDay();if(w!==0&&w!==6)count++;
+   if(count>250)return count;
+ }
+ return count;
+}
+function freshness(def,day){
+ if(!day)return {stale:true,delayed:true,label:"暂无观测",age:Infinity};
+ if(def.freq==="weekly"){
+  const age=Math.max(0,Math.round((Date.parse(usToday()+"T12:00:00Z")-Date.parse(day+"T12:00:00Z"))/86400000));
+  return {stale:age>18,delayed:age>10,label:age>18?"数据过期":age>10?"更新偏慢":"周度正常",age};
+ }
+ const age=businessDaysSince(day);
+ // Weekend days do not count. U.S. holidays may add an extra conservative day.
+ return {stale:age>4,delayed:age>2,label:age>4?"数据过期":age>2?"来源略滞后":"工作日正常",age};
+}
+function trend13(def){
+ const a=obs(def),last=a.at(-1);if(!last)return null;
+ const target=Date.parse(last.date+"T12:00:00Z")-91*86400000;
+ const prior=a.filter(x=>Date.parse(x.date+"T12:00:00Z")<=target).at(-1);
+ if(!prior||!Number.isFinite(prior.value)||prior.value===0)return null;
+ return {absolute:last.value-prior.value,percent:100*(last.value/prior.value-1),date:prior.date};
+}
+function grade(def,stat){
+ const state=freshness(def,stat.last&&stat.last.date);
+ if(state.stale||!stat.last)return {text:"暂不判断",color:"",reason:"观测日期已过期"};
+ const val=stat.last.value,t=trend13(def);
+ if(def.key==="FUNDING_SPREAD"){
+  if(val>=0.25)return {text:"融资明显承压",color:"bad",reason:"SOFR较IORB高"+fmt(val)+"个百分点"};
+  if(val>=0.10)return {text:"融资压力关注",color:"warn",reason:"绝对融资利差已升高"};
+  return {text:"融资利差温和",color:"good",reason:"利差仅"+fmt(val)+"个百分点，分位高不等于危机"};
+ }
+ if(def.key==="HY_OAS"){
+  const widen=t&&t.absolute;
+  if(val>=6||(widen!==null&&widen>=1.5))return {text:"信用风险显著上升",color:"bad",reason:"信用利差水平或13周扩大幅度偏高"};
+  if(val>=4.5||(widen!==null&&widen>=0.5))return {text:"信用利差扩大",color:"warn",reason:"近13周变化："+(widen>=0?"+":"")+fmt(widen)+"个百分点"};
+  return {text:"信用风险未显著升高",color:"good",reason:"利差水平相对温和"};
+ }
+ if(def.key==="RESERVES"||def.key==="NET_LIQUIDITY_BN"){
+  if(!t)return {text:"趋势数据不足",color:"",reason:"无法核对13周变化"};
+  if(t.percent<=-10)return {text:"13周明显下降",color:"bad",reason:"13周变化："+fmt(t.percent)+"%"};
+  if(t.percent<=-5)return {text:"13周持续收缩",color:"warn",reason:"13周变化："+fmt(t.percent)+"%"};
+  return {text:"13周变化温和",color:"good",reason:"13周变化："+(t.percent>0?"+":"")+fmt(t.percent)+"%"};
+ }
+ return {text:"仅供观察",color:"",reason:"暂无统一风险阈值"};
+}
 function value(def,v){if(v===undefined||v===null)return "—";return fmt(v/(def.scale||1));}
 function makeChart(def,s){
  const a=s.a;
@@ -88,13 +142,29 @@ function render(){
  const checked=data.checked_at?new Date(data.checked_at).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}):"未知";
  const failures=Object.keys(data.errors||{});
  $("health").className="status"+(failures.length?" warning":"");
- $("health").innerHTML='<div class="health-line"><strong>上次抓取：'+safe(checked)+'（北京时间）</strong><span>可用指标：'+Object.keys(data.series||{}).filter(k=>(data.series[k]||[]).length).length+' 项</span>'+(failures.length?'<span class="pill warn">部分数据源失败</span>':'<span class="pill good">数据抓取已执行</span>')+'</div><div class="helper">各指标以实际观测日期为准；数据较旧会标注，不代表今日行情。</div>';
- let core=DEF.slice(0,4).map(d=>({d,s:stats(d)})),flagged=core.filter(z=>risk(z.d,z.s.p,old(z.d,z.s.last&&z.s.last.date))[1]==="bad").length,coverage=core.filter(z=>z.s.p!==null&&!old(z.d,z.s.last&&z.s.last.date)).length;
- $("overall").innerHTML='<strong>核心资金压力观察：</strong>'+(coverage<3?'有效指标不足，暂不判断综合状态。':flagged>=2?'多项指标位于历史紧张端，值得警惕。':flagged===1?'一项核心指标进入历史极端区间。':'未出现两项以上核心指标同时处于历史极端区间。')+'<div class="helper">这是历史分位启发式观察（'+coverage+'/4项有效），不是经回测的危机预测或抄底信号。</div>';
- $("summary").innerHTML=core.map(z=>{const d=z.d,s=z.s,stale=old(d,s.last&&s.last.date),label=risk(d,s.p,stale);return '<article class="metric"><div class="metrichead"><span>'+safe(d.title)+'</span><span class="pill '+(stale?'warn':label[1])+'">'+(stale?'数据滞后':label[0])+'</span></div><div class="number">'+(s.last?value(d,s.last.value):"—")+' <span class="smallunit">'+safe(d.unit)+'</span></div><div class="helper">观测：'+safe(s.last?s.last.date:"暂无")+' · '+(s.p===null?'分位样本不足':'历史分位 '+s.p+'%')+'</div></article>';}).join("");
+ $("health").innerHTML='<div class="health-line"><strong>上次抓取：'+safe(checked)+'（北京时间）</strong><span>数据序列：'+Object.keys(data.series||{}).filter(k=>(data.series[k]||[]).length).length+' 项</span>'+(failures.length?'<span class="pill warn">部分数据源失败</span>':'<span class="pill good">数据接口已执行</span>')+'</div><div class="helper">判断使用美国工作日和指标发布周期，历史分位与风险状态分别计算。</div>';
+ const core=DEF.slice(0,4).map(d=>({d,s:stats(d)}));
+ const graded=core.map(z=>({d:z.d,s:z.s,g:grade(z.d,z.s),fresh:freshness(z.d,z.s.last&&z.s.last.date)}));
+ const active=graded.filter(z=>!z.fresh.stale&&z.g.color);
+ const countBad=active.filter(z=>z.g.color==="bad").length,countWarn=active.filter(z=>z.g.color==="warn").length;
+ let summary="";
+ if(active.length<3)summary="有效核心数据不足，暂不判断整体资金压力。";
+ else if(countBad>=2)summary="多项核心指标出现明显压力，须警惕融资与信用风险共振。";
+ else if(countBad===1||countWarn>=2)summary="局部资金压力上升，但尚不能单凭这些指标判断系统性流动性危机。";
+ else if(countWarn===1)summary="信用或流动性局部承压，暂未看到多项核心指标同步恶化。";
+ else summary="核心指标尚未显示广泛融资压力，但不代表市场不会下跌。";
+ $("overall").innerHTML='<strong>核心资金压力观察：</strong>'+safe(summary)+'<div class="helper">'+active.length+'/4项可用于本次观察；偏紧阈值是研究性规则，尚未做完整历史回测。高历史分位本身不等于金融危机。</div>';
+ $("summary").innerHTML=graded.map(z=>{
+ const d=z.d,s=z.s,g=z.g,f=z.fresh;
+ const tag=f.stale?'<span class="pill warn">数据过期</span>':'<span class="pill '+g.color+'">'+safe(g.text)+'</span>';
+ return '<article class="metric"><div class="metrichead"><span>'+safe(d.title)+'</span>'+tag+'</div><div class="number">'+(s.last?value(d,s.last.value):"—")+' <span class="smallunit">'+safe(d.unit)+'</span></div><div class="helper">观测：'+safe(s.last?s.last.date:"暂无")+' · '+(s.p===null?'样本不足':'历史分位 '+s.p+'%')+'</div><div class="helper">'+safe(f.stale?"该观测过期，未纳入本次判断":g.reason)+'</div>'+(f.delayed&&!f.stale?'<div class="helper" style="color:#96631c">来源略有延迟（已计入周末）</div>':'')+'</article>';
+ }).join("");
  $("range-buttons").innerHTML=[3,5,10].map(y=>'<button class="'+(years===y?'active':'')+'" type="button" data-years="'+y+'" aria-pressed="'+(years===y)+'">'+y+'年</button>').join("");
- $("charts").innerHTML=DEF.map(d=>{const s=stats(d),last=s.last,stale=old(d,last&&last.date),level=risk(d,s.p,stale),src=(data.source_by_series||{})[d.key]||"尚无来源";
- return '<section class="panel"><div class="charthead"><div><div class="charttitle">'+safe(d.title)+' '+(stale?'<span class="pill warn">数据滞后</span>':'')+'</div><div class="chartmeta">最新观测：'+safe(last?last.date:"暂无")+'　历史样本：'+s.a.length+' 条</div></div><div class="stat">'+(last?value(d,last.value)+" "+safe(d.unit):"暂无")+(s.p!==null?" · "+s.p+"%分位":"")+'</div></div>'+makeChart(d,s)+'<div class="legend">来源：'+safe(src)+'</div></section>';}).join("");
+ $("charts").innerHTML=DEF.map(d=>{
+ const s=stats(d),last=s.last,f=freshness(d,last&&last.date),src=(data.source_by_series||{})[d.key]||"尚无来源";
+ const freshnessTag=f.stale?'<span class="pill warn">数据过期</span>':f.delayed?'<span class="pill warn">源更新偏慢</span>':'';
+ return '<section class="panel"><div class="charthead"><div><div class="charttitle">'+safe(d.title)+' '+freshnessTag+'</div><div class="chartmeta">最新观测：'+safe(last?last.date:"暂无")+'　历史样本：'+s.a.length+' 条</div></div><div class="stat">'+(last?value(d,last.value)+" "+safe(d.unit):"暂无")+(s.p!==null?" · "+s.p+"%分位":"")+'</div></div>'+makeChart(d,s)+'<div class="legend">来源：'+safe(src)+'</div></section>';
+ }).join("");
  $("range-buttons").querySelectorAll("button").forEach(b=>b.onclick=()=>{years=Number(b.dataset.years);render();});
  $("charts").querySelectorAll(".chartbox").forEach(box=>{
    const def=DEF.find(d=>d.key===box.dataset.chart),a=stats(def).a,svg=box.querySelector("svg"),tip=box.querySelector(".charttip");
