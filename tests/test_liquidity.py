@@ -23,6 +23,11 @@ class LiquidityTests(unittest.TestCase):
         other = "DATE,OPEN,HIGH,LOW,CLOSE\n2026-10-30,1,2,1,26.15\n"
         self.assertEqual(li.parse_cboe(other)[0]["date"], "2026-10-30")
 
+    def test_nyfed_official_latest_rates(self):
+        raw='{"refRates":[{"effectiveDate":"2026-11-09","type":"SOFR","percentRate":3.88,"percentPercentile99":3.96}]}'
+        self.assertEqual(li.parse_nyfed(raw,"SOFR"), [{"date":"2026-11-09","value":3.88}])
+        self.assertEqual(li.parse_nyfed(raw,"SOFR99"), [{"date":"2026-11-09","value":3.96}])
+
     def test_aligned_funding_spread_no_future_fill(self):
         a=[{"date":"2026-10-01","value":3.91},{"date":"2026-10-02","value":3.96}]
         b=[{"date":"2026-10-02","value":3.90}]
