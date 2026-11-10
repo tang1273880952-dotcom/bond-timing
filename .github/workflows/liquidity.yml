@@ -1,21 +1,29 @@
-name: Update US liquidity data
+name: Update US liquidity data and publish
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/liquidity.yml'
       - 'scripts/update_liquidity.py'
+      - 'liquidity.html'
+      - 'tests/test_liquidity.py'
   workflow_dispatch:
   schedule:
+    # Beijing 08:00 and 20:00, UTC timestamps
     - cron: '0 0,12 * * *'
 permissions:
   contents: write
+  pages: write
+  id-token: write
 concurrency:
   group: bond-timing-market-data
   cancel-in-progress: false
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,20 +32,50 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Fetch public liquidity observations
+      - name: Verify data units, parsing and net liquidity arithmetic
+        run: python -m unittest discover -s tests -p 'test_liquidity.py'
+      - name: Fetch market observations from free sources
         run: python scripts/update_liquidity.py
-      - name: Commit verified snapshot
+      - name: Check snapshot has real historical data
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("data/liquidity_latest.json")
+          assert p.is_file(), "Liquidity snapshot missing"
+          j=json.loads(p.read_text())
+          for k in ("FUNDING_SPREAD", "HY_OAS", "RESERVES", "NET_LIQUIDITY_BN"):
+              obs=j["series"].get(k, [])
+              assert len(obs)>=25, f"{k}: no usable history"
+              print(k, len(obs), obs[-1], j["source_by_series"].get(k))
+          PY
+      - name: Commit new historical data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/liquidity_latest.json
           if ! git diff --cached --quiet; then
-            git commit -m "chore: refresh US liquidity snapshot"
+            git commit -m "chore: refresh verified liquidity observations"
             for attempt in 1 2 3 4 5; do
               git fetch origin main
               git rebase origin/main
-              if git push origin HEAD:main; then exit 0; fi
+              if git push origin HEAD:main; then break; fi
               if [ "$attempt" -eq 5 ]; then exit 1; fi
               sleep 2
             done
           fi
+      - name: Sync latest committed page and data
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+      - name: Build Pages and ensure liquidity data is included
+        run: |
+          python scripts/build_pages.py /tmp/pages-site
+          test -s /tmp/pages-site/liquidity.html
+          test -s /tmp/pages-site/data/liquidity_latest.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: /tmp/pages-site
+      - id: deployment
+        uses: actions/deploy-pages@v4
