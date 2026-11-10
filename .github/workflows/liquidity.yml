@@ -1,5 +1,10 @@
 name: Update US liquidity data
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/liquidity.yml'
+      - 'scripts/update_liquidity.py'
   workflow_dispatch:
   schedule:
     - cron: '0 0,12 * * *'
