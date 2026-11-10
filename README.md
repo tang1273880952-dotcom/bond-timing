@@ -125,3 +125,16 @@ AISC反映矿山维持经营成本，不是黄金价格底线或黄金内在价�
 - Convex免费接口虽能获取JSON和CSV，但2026-11-03实测最新停在10月16日，不能当作实时信用来源，未接入生产评分。
 
 所有指标独立检验原始数值、数据日期和来源。停止更新即降低评分覆盖率，信用利差缺失时停止发出新的买入信号。原定自动更新时间不变。
+
+### 美元流动性监测（免费接口）
+
+网页：[`/liquidity.html`](https://tang1273880952-dotcom.github.io/bond-timing/liquidity.html)，不影响已有估值图。
+四张核心图为SOFR－IORB资金利差、ICE BofA HY OAS、银行准备金与美元净流动性代理。
+其他图：VIX、GVZ、广义美元贸易加权指数DTWEXBGS（**不是DXY**）、SOFR99－IORB尾部融资利差（**不是MOVE**）。
+真实历史观测和最新数据日期展示在每张图；3/5/10年切换及0/10/20/50/80/90/100水平分位线来自所选样本。历史不足时不伪造样本。
+- 免费主来源：GitHub公开FRED历史数据镜像 [Vincizh/market-fragility-dashboard](https://github.com/Vincizh/market-fragility-dashboard)；部分指标回退Convex公开API；GVZ使用Cboe公开CSV。
+- 原FRED网页CSV在GitHub Actions上全部请求超时，原DBnomics路径返回404，已停用。
+- `.github/workflows/liquidity.yml`北京时间每日08:00、20:00检查；每次任务**自己提交JSON并重新部署GitHub Pages**，不依赖Action Bot提交触发其他工作流。
+- `data/liquidity_latest.json` 是唯一发布数据快照；含原始观测日期、单项来源、抓取时间和失败详情；暂时无法更新时保留已验证历史，不改写原始日期。
+- 净流动性代理=(WALCL－WTREGEN)/1000－RRPONTSYD，单位十亿美元；前两项原始单位百万美元，RRP原始单位十亿美元。
+- 重要：股债同时下跌不等于流动性危机；历史分位与启发式风险提示没有进行防未来函数回测，不能当成交易信号。
