@@ -68,6 +68,16 @@ jobs:
         run: |
           git fetch origin main
           git reset --hard origin/main
+      - name: Check liquidity JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html=Path("liquidity.html").read_text(encoding="utf-8")
+          script=html.split("<script>")[-1].split("</script>")[0]
+          assert script and "function render()" in script
+          Path("/tmp/liquidity-site.js").write_text(script,encoding="utf-8")
+          PY
+          node --check /tmp/liquidity-site.js
       - name: Build Pages and ensure liquidity data is included
         run: |
           python scripts/build_pages.py /tmp/pages-site
@@ -79,3 +89,32 @@ jobs:
           path: /tmp/pages-site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify deployed HTML and liquidity JSON are reachable
+        run: |
+          python - <<'PY'
+          import json,time,urllib.request
+          base="https://tang1273880952-dotcom.github.io/bond-timing/"
+          endpoints=(("liquidity.html",False),("data/liquidity_latest.json",True))
+          for path,is_json in endpoints:
+              last=""
+              for attempt in range(10):
+                  try:
+                      url=base+path+"?check="+str(int(time.time()))
+                      with urllib.request.urlopen(url,timeout=12) as response:
+                          body=response.read()
+                          assert response.status==200 and len(body)>300
+                      if is_json:
+                          obj=json.loads(body)
+                          assert len(obj.get("series",{}).get("FUNDING_SPREAD",[]))>100
+                          assert obj.get("checked_at"), "no source check timestamp"
+                      else:
+                          assert "美元流动性监测".encode() in body
+                      print("LIVE OK:",path,"bytes:",len(body))
+                      break
+                  except Exception as exc:
+                      last=str(exc)
+                      print("Attempt",attempt+1,path,"not ready:",last,flush=True)
+                      time.sleep(5)
+              else:
+                  raise RuntimeError("Published Pages verification failed: "+path+" "+last)
+          PY
