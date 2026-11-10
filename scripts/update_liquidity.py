@@ -25,6 +25,7 @@ SERIES = {
     "RESERVES": "WRESBAL", "FED_ASSETS": "WALCL",
     "TGA": "WTREGEN", "RRP": "RRPONTSYD",
     "VIX": "VIXCLS", "GVZ": "GVZ",
+    "DOLLAR_BROAD": "DTWEXBGS", "SOFR99": "SOFR99",
 }
 DAILY = {"SOFR", "IORB", "HY_OAS", "RRP", "VIX", "GVZ"}
 MINMAX = {
@@ -32,6 +33,7 @@ MINMAX = {
     "RESERVES": (0, 10000000), "FED_ASSETS": (100000, 30000000),
     "TGA": (0, 5000000), "RRP": (0, 6000),
     "VIX": (5, 150), "GVZ": (5, 150),
+    "DOLLAR_BROAD": (40, 300), "SOFR99": (-0.5, 30),
 }
 
 def download(url, timeout=12):
@@ -111,7 +113,7 @@ def fetch_one(name, code):
                            lambda: parse_rows(download(MIRROR.format(code)), code)))
         # Convex data are checked against FRED-mirror units and plausible magnitudes.
         # Series with unverified unit conversions use FRED mirror only.
-        if name in ("SOFR", "IORB", "HY_OAS", "RRP", "VIX"):
+        if name in ("SOFR", "IORB", "HY_OAS", "RRP", "VIX", "DOLLAR_BROAD", "SOFR99"):
             candidates.append(("Convex public macro API",
                               lambda: parse_convex(download(CONVEX.format(code)))))
     if name in ("GVZ", "VIX"):
@@ -159,7 +161,7 @@ def main():
     series = {}
     source = {}
     errors = {}
-    with ThreadPoolExecutor(max_workers=9) as pool:
+    with ThreadPoolExecutor(max_workers=11) as pool:
         futures = {pool.submit(fetch_one, name, code): name for name, code in SERIES.items()}
         for future in as_completed(futures):
             name = futures[future]
@@ -177,12 +179,15 @@ def main():
     if "SOFR" in series and "IORB" in series:
         series["FUNDING_SPREAD"] = combine(series["SOFR"], series["IORB"])
         source["FUNDING_SPREAD"] = "SOFR − IORB, aligned on identical observation dates"
+    if "SOFR99" in series and "IORB" in series:
+        series["TAIL_SPREAD"] = combine(series["SOFR99"], series["IORB"])
+        source["TAIL_SPREAD"] = "SOFR 99th percentile − IORB, matched observation dates"
     if all(k in series for k in ("FED_ASSETS", "TGA", "RRP")):
         series["NET_LIQUIDITY_BN"] = net_liquidity(series)
         source["NET_LIQUIDITY_BN"] = "WALCL − WTREGEN − RRPONTSYD (weekly aligned, USD billions)"
     if not series or not any(series.get(k) for k in ("FUNDING_SPREAD", "HY_OAS", "RESERVES", "NET_LIQUIDITY_BN")):
         raise RuntimeError("No usable core series; preserve last verified file: " + str(errors))
-    for k in ("FUNDING_SPREAD", "NET_LIQUIDITY_BN"):
+    for k in ("FUNDING_SPREAD", "TAIL_SPREAD", "NET_LIQUIDITY_BN"):
         if k in series and len(series[k]) < 25:
             errors[k] = "derived history insufficient"
             del series[k]
@@ -198,6 +203,7 @@ def main():
             "FUNDING_SPREAD": "percentage points", "HY_OAS": "percent",
             "RESERVES": "USD millions", "NET_LIQUIDITY_BN": "USD billions",
             "VIX": "index", "GVZ": "index",
+            "DOLLAR_BROAD":"index, Jan 2006=100", "TAIL_SPREAD":"percentage points",
         },
         "methodology": "Unmodified observed values only. Matched SOFR/IORB dates; weekly Fed/TGA with preceding RRP <=7 days. Vendor mirrors can lag."
     }
