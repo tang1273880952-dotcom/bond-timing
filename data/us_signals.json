@@ -5,7 +5,7 @@
   "coveredWeight": 100,
   "missingWeight": 0,
   "complete": true,
-  "asof": "2026-11-09",
+  "asof": "2026-11-10",
   "riskDataIncomplete": false,
   "missingIndicators": [],
   "action": "等待 / 持有观察",
@@ -14,7 +14,7 @@
   "confirmations": [
     {
       "name": "RSI超卖后回升",
-      "met": true
+      "met": false
     },
     {
       "name": "价格站上MA20且近5日走强",
@@ -22,17 +22,17 @@
     },
     {
       "name": "信用利差5日收窄≥0.05百分点",
-      "met": false
+      "met": true
     }
   ],
   "riskVeto": false,
   "indicators": {
     "erp": {
-      "value": 2.5,
+      "value": 1.67,
       "unit": "%分位",
-      "score": 0.75,
+      "score": 0.5,
       "weight": 30,
-      "date": "2026-11-09",
+      "date": "2026-11-10",
       "source": "已有标普500真实月度ERP十年分位"
     },
     "vix": {
@@ -44,50 +44,46 @@
       "source": "Cboe VIX daily close"
     },
     "rsi": {
-      "value": 45.77,
+      "value": 44.45,
       "unit": "",
-      "score": 7.69,
+      "score": 8.22,
       "weight": 15,
-      "date": "2026-11-09",
+      "date": "2026-11-10",
       "source": "Yahoo Finance ^GSPC · Wilder RSI(14)"
     },
     "breadth": {
-      "value": 68.59,
+      "value": 68.39,
       "unit": "%",
-      "score": 1.42,
+      "score": 1.48,
       "weight": 15,
-      "date": "2026-11-09",
+      "date": "2026-11-10",
       "source": "DeanFinancials GitHub · S&P500当前成分股50日均线上方占比",
-      "change5": 2.59
+      "change5": 4.18
     },
     "credit": {
-      "value": 3.48,
+      "value": 3.34,
       "unit": "%",
-      "score": 10.0,
+      "score": 9.64,
       "weight": 15,
-      "date": "2026-11-05",
+      "date": "2026-11-09",
       "source": "FRED BAMLH0A0HYM2 · ICE BofA，经公开GitHub缓存",
-      "change5": 0.22,
-      "change20": 0.33
+      "change5": -0.09,
+      "change20": 0.23
     },
     "trend": {
-      "value": 7549.94,
+      "value": 7520.93,
       "unit": "点",
       "score": 5.0,
       "weight": 10,
-      "date": "2026-11-09",
+      "date": "2026-11-10",
       "source": "Yahoo Finance ^GSPC · MA50/MA200",
-      "ma20": 7644.94,
-      "ma50": 7676.21,
-      "ma200": 7328.22
+      "ma20": 7630.71,
+      "ma50": 7672.91,
+      "ma200": 7331.08
     }
   },
-  "latestPrice": 7549.94,
+  "latestPrice": 7520.93,
   "priceHistory": [
-    [
-      "2025-10-28",
-      6890.89
-    ],
     [
       "2025-10-29",
       6890.59
@@ -1123,6 +1119,10 @@
     [
       "2026-11-09",
       7549.94
+    ],
+    [
+      "2026-11-10",
+      7520.93
     ]
   ],
   "method": "六因子预设权重30/15/15/15/15/10；采用真实S&P500当前成分股的50日均线广度，历史有成分变动偏差，不用于严格回测；高收益债OAS为真实ICE BofA数据经FRED公开缓存。任何来源缺失不计分并标注覆盖率，信用利差缺失停用买入信号；买卖规则未经回测。ERP为月度，其他日度。",
