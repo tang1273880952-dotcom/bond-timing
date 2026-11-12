@@ -1,7 +1,7 @@
 {
   "valid": true,
   "mode": "sp500-signals-v1",
-  "score": 27,
+  "score": 25,
   "coveredWeight": 100,
   "missingWeight": 0,
   "complete": true,
@@ -36,11 +36,11 @@
       "source": "已有标普500真实月度ERP十年分位"
     },
     "vix": {
-      "value": 19.46,
+      "value": 17.49,
       "unit": "",
-      "score": 4.6,
+      "score": 3.12,
       "weight": 15,
-      "date": "2026-11-10",
+      "date": "2026-11-11",
       "source": "Cboe VIX daily close"
     },
     "rsi": {
