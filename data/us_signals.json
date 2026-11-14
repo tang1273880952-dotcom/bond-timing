@@ -1,11 +1,11 @@
 {
   "valid": true,
   "mode": "sp500-signals-v1",
-  "score": 31,
+  "score": 30,
   "coveredWeight": 100,
   "missingWeight": 0,
   "complete": true,
-  "asof": "2026-11-12",
+  "asof": "2026-11-13",
   "riskDataIncomplete": false,
   "missingIndicators": [],
   "action": "等待 / 持有观察",
@@ -32,7 +32,7 @@
       "unit": "%分位",
       "score": 0.25,
       "weight": 30,
-      "date": "2026-11-12",
+      "date": "2026-11-13",
       "source": "已有标普500真实月度ERP十年分位"
     },
     "vix": {
@@ -44,50 +44,46 @@
       "source": "Cboe VIX daily close"
     },
     "rsi": {
-      "value": 48.38,
+      "value": 46.81,
       "unit": "",
-      "score": 6.65,
+      "score": 7.28,
       "weight": 15,
-      "date": "2026-11-12",
+      "date": "2026-11-13",
       "source": "Yahoo Finance ^GSPC · Wilder RSI(14)"
     },
     "breadth": {
-      "value": 69.58,
+      "value": 70.58,
       "unit": "%",
-      "score": 1.13,
+      "score": 0.96,
       "weight": 15,
-      "date": "2026-11-12",
+      "date": "2026-11-13",
       "source": "DeanFinancials GitHub · S&P500当前成分股50日均线上方占比",
-      "change5": 7.95
+      "change5": 9.82
     },
     "credit": {
-      "value": 3.3,
+      "value": 3.2,
       "unit": "%",
-      "score": 13.49,
+      "score": 12.89,
       "weight": 15,
-      "date": "2026-11-11",
+      "date": "2026-11-12",
       "source": "FRED BAMLH0A0HYM2 · ICE BofA，经公开GitHub缓存",
-      "change5": -0.1,
-      "change20": 0.14
+      "change5": -0.12,
+      "change20": -0.05
     },
     "trend": {
-      "value": 7592.4,
+      "value": 7561.67,
       "unit": "点",
       "score": 5.0,
       "weight": 10,
-      "date": "2026-11-12",
+      "date": "2026-11-13",
       "source": "Yahoo Finance ^GSPC · MA50/MA200",
-      "ma20": 7618.15,
-      "ma50": 7671.18,
-      "ma200": 7337.35
+      "ma20": 7613.26,
+      "ma50": 7667.46,
+      "ma200": 7340.32
     }
   },
-  "latestPrice": 7592.4,
+  "latestPrice": 7561.67,
   "priceHistory": [
-    [
-      "2025-10-31",
-      6840.2
-    ],
     [
       "2025-11-03",
       6851.97
@@ -1123,6 +1119,10 @@
     [
       "2026-11-12",
       7592.4
+    ],
+    [
+      "2026-11-13",
+      7561.67
     ]
   ],
   "method": "六因子预设权重30/15/15/15/15/10；采用真实S&P500当前成分股的50日均线广度，历史有成分变动偏差，不用于严格回测；高收益债OAS为真实ICE BofA数据经FRED公开缓存。任何来源缺失不计分并标注覆盖率，信用利差缺失停用买入信号；买卖规则未经回测。ERP为月度，其他日度。",
