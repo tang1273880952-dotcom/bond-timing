@@ -1,6 +1,9 @@
 {
-  "attemptAt": "2026-11-17T00:49:06.185014+08:00",
-  "success": true,
+  "attemptAt": "2026-11-17T20:00:48.833971+08:00",
+  "success": false,
   "usableCount": 7,
-  "errors": {}
+  "errors": {
+    "399998": "PB value or date absent from published page",
+    "399986": "PB value or date absent from published page"
+  }
 }
