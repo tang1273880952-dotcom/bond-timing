@@ -1,7 +1,7 @@
 {
   "valid": true,
   "mode": "sp500-signals-v1",
-  "score": 32,
+  "score": 34,
   "coveredWeight": 100,
   "missingWeight": 0,
   "complete": true,
@@ -36,11 +36,11 @@
       "source": "已有标普500真实月度ERP十年分位"
     },
     "vix": {
-      "value": 22.91,
+      "value": 25.46,
       "unit": "",
-      "score": 6.75,
+      "score": 8.28,
       "weight": 15,
-      "date": "2026-11-16",
+      "date": "2026-11-17",
       "source": "Cboe VIX daily close"
     },
     "rsi": {
@@ -52,13 +52,13 @@
       "source": "Yahoo Finance ^GSPC · Wilder RSI(14)"
     },
     "breadth": {
-      "value": 57.46,
+      "value": 57.97,
       "unit": "%",
-      "score": 4.76,
+      "score": 4.61,
       "weight": 15,
       "date": "2026-11-17",
       "source": "DeanFinancials GitHub · S&P500当前成分股50日均线上方占比",
-      "change5": -10.93
+      "change5": -11.55
     },
     "credit": {
       "value": 3.34,
