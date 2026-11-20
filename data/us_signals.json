@@ -1,13 +1,15 @@
 {
   "valid": true,
   "mode": "sp500-signals-v1",
-  "score": 38,
-  "coveredWeight": 100,
-  "missingWeight": 0,
-  "complete": true,
+  "score": 39,
+  "coveredWeight": 85,
+  "missingWeight": 15,
+  "complete": false,
   "asof": "2026-11-19",
   "riskDataIncomplete": false,
-  "missingIndicators": [],
+  "missingIndicators": [
+    "breadth"
+  ],
   "action": "等待 / 持有观察",
   "tone": "neutral",
   "confirmed": 0,
@@ -36,11 +38,11 @@
       "source": "已有标普500真实月度ERP十年分位"
     },
     "vix": {
-      "value": 24.56,
+      "value": 28.44,
       "unit": "",
-      "score": 7.74,
+      "score": 10.06,
       "weight": 15,
-      "date": "2026-11-18",
+      "date": "2026-11-19",
       "source": "Cboe VIX daily close"
     },
     "rsi": {
@@ -52,13 +54,13 @@
       "source": "Yahoo Finance ^GSPC · Wilder RSI(14)"
     },
     "breadth": {
-      "value": 49.9,
+      "value": null,
       "unit": "%",
-      "score": 7.03,
+      "score": null,
       "weight": 15,
-      "date": "2026-11-19",
-      "source": "DeanFinancials GitHub · S&P500当前成分股50日均线上方占比",
-      "change5": -20.82
+      "date": null,
+      "source": "公开S&P500市场宽度来源缺失",
+      "change5": null
     },
     "credit": {
       "value": 3.47,
