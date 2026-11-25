@@ -36,11 +36,11 @@
       "source": "已有标普500真实月度ERP十年分位"
     },
     "vix": {
-      "value": 26.62,
+      "value": 26.36,
       "unit": "",
-      "score": 8.97,
+      "score": 8.82,
       "weight": 15,
-      "date": "2026-11-23",
+      "date": "2026-11-24",
       "source": "Cboe VIX daily close"
     },
     "rsi": {
