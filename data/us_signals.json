@@ -52,13 +52,13 @@
       "source": "Yahoo Finance ^GSPC · Wilder RSI(14)"
     },
     "breadth": {
-      "value": 59.44,
+      "value": 59.56,
       "unit": "%",
-      "score": 4.17,
+      "score": 4.13,
       "weight": 15,
       "date": "2026-11-25",
       "source": "DeanFinancials GitHub · S&P500当前成分股50日均线上方占比",
-      "change5": 2.78
+      "change5": 2.9
     },
     "credit": {
       "value": 3.72,
